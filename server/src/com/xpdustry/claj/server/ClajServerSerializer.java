@@ -40,12 +40,12 @@ public class ClajServerSerializer implements NetSerializer, FrameworkSerializer 
     ConnectionPacketWrapPacket.serializer = new ConnectionPacketWrapPacket.Serializer() {
       @Override
       public void read(ConnectionPacketWrapPacket packet, ByteBufferInput read) {
-        packet.raw = new RawPacket().r(read);
+        packet.raw = RawPacket.copyRemaining(read);
       }
 
       @Override
       public void write(ConnectionPacketWrapPacket packet, ByteBufferOutput write) {
-        packet.raw.w(write);
+        RawPacket.write(packet.raw, write);
       }
     };
   }
@@ -77,7 +77,7 @@ public class ClajServerSerializer implements NetSerializer, FrameworkSerializer 
       // Non-claj packets are saved as raw buffer, to avoid re-serialization
       default -> {
         buffer.position(buffer.position()-1);
-        yield new RawPacket().r(readi);
+        yield new RawPacket(buffer);
       }
     };
   }

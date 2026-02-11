@@ -37,7 +37,6 @@ public class ClajConnection {
   /** hex version of {@link #id}. */
   public final String sid;
   public final Ratekeeper packetRate;
-  public final Ratekeeper joinRate;
 
   public ClajConnection(Connection connection) {
     this(connection, AddressUtil.get(connection), AddressUtil.encodeId(connection));
@@ -50,7 +49,6 @@ public class ClajConnection {
     id = connection.getID();
     sid = encodedId;
     packetRate = new Ratekeeper();
-    joinRate = new Ratekeeper();
   }
 
   public boolean isConnected() {

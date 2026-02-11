@@ -30,18 +30,24 @@ public class RoomConfigPacket extends DelayedPacket {
   public boolean isProtected;
   /** The room password. It's a 4 digits pin code and should be {@code -1} if unset. */
   public short password;
+  /** Whether the host allows or not the server to request his state. */
+  public boolean requestState;
 
   @Override
   protected void readImpl(ByteBufferInput read) {
-    isPublic = read.readBoolean();
-    isProtected = read.readBoolean();
+    int data = read.readUnsignedByte();
+    isPublic =     (data & 0b0100) == 0b0100;
+    isProtected =  (data & 0b0010) == 0b0010;
+    requestState = (data & 0b0001) == 0b0001;
     password = read.readShort();
   }
 
   @Override
   public void write(ByteBufferOutput write) {
-    write.writeBoolean(isPublic);
-    write.writeBoolean(isProtected);
+    int data =     ((isPublic ? 1 : 0) << 2)
+             |  ((isProtected ? 1 : 0) << 1)
+             | ((requestState ? 1 : 0) << 0);
+    write.writeByte(data);
     write.writeShort(password);
   }
 }

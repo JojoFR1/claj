@@ -38,8 +38,10 @@ public class ClientReceiver implements NetListener {
   protected NetListenerFilter filter;
 
   /** Receive will not be delegated. */
-  public ClientReceiver(EndPoint server) { this(server, null, null); }
-  public ClientReceiver(EndPoint server, Cons<Runnable> delegator) { this(server, null, null); }
+  public ClientReceiver(EndPoint server) { this(server, null); }
+  public ClientReceiver(EndPoint server, Cons<Runnable> delegator) {
+    this(server, null, NetListenerFilter.defaultFilter);
+  }
   public ClientReceiver(EndPoint server, Cons<Runnable> delegator, NetListenerFilter filter) {
     this.delegator = delegator;
     this.filter = filter;
@@ -47,12 +49,13 @@ public class ClientReceiver implements NetListener {
   }
 
   public void setFilter(NetListenerFilter filter) {
+    if (filter == null) throw new NullPointerException("filter");
     this.filter = filter;
   }
 
   @Override
   public void connected(Connection connection) {
-    if (filter != null && !filter.connected(connection)) return;
+    if (!filter.connected(connection)) return;
     Connect packet = new Connect();
     packet.address = AddressUtil.get(connection);
     delegateReceive(packet);
@@ -60,7 +63,7 @@ public class ClientReceiver implements NetListener {
 
   @Override
   public void disconnected(Connection connection, DcReason reason) {
-    if (filter != null && !filter.disconnected(connection, reason)) return;
+    if (!filter.disconnected(connection, reason)) return;
     Disconnect packet = new Disconnect();
     packet.reason = reason;
     delegateReceive(packet);
@@ -68,14 +71,14 @@ public class ClientReceiver implements NetListener {
 
   @Override
   public void received(Connection connection, Object object) {
-    if (filter != null && !filter.received(connection, object)) return;
+    if (!filter.received(connection, object)) return;
     if (!(object instanceof Packet packet)) return;
     delegateReceive(packet);
   }
 
   @Override
   public void idle(Connection connection) {
-    if (filter != null && !filter.idle(connection)) return;
+    if (!filter.idle(connection)) return;
     delegateReceive(Idle.instance);
   }
 

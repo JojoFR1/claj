@@ -26,7 +26,14 @@ import com.xpdustry.claj.common.status.*;
 
 public class ClajEvents {
   public static class ServerLoadedEvent {}
-  public static class ServerStoppingEvent {}
+  public static class ServerStoppingEvent {
+    /** Whether the server is still available or not to send packets. (timeout) */
+    public final boolean available;
+
+    public ServerStoppingEvent(boolean available) {
+      this.available = available;
+    }
+  }
 
   public static class ClientConnectedEvent {
     public final ClajConnection connection;
@@ -35,17 +42,14 @@ public class ClajEvents {
       this.connection = connection;
     }
   }
+  /** When a connection left the server. Only called if the connection was valid. */
   public static class ClientDisonnectedEvent {
-    /** Can be {@code null} if it's an invalid connection. */
     public final ClajConnection connection;
     public final DcReason reason;
-    /** Can be {@code null} if the connection was not in a room. */
-    public final ClajRoom room;
 
-    public ClientDisonnectedEvent(ClajConnection connection, DcReason reason, ClajRoom room) {
+    public ClientDisonnectedEvent(ClajConnection connection, DcReason reason) {
       this.connection = connection;
       this.reason = reason;
-      this.room = room;
     }
   }
   /** Currently, the only reason is for packet spam. */
@@ -68,11 +72,21 @@ public class ClajEvents {
     }
   }
   /** When a connection join a room. */
-  public static class ConnectionJoinAcceptedEvent {
+  public static class ConnectionJoinedEvent {
     public final ClajConnection connection;
     public final ClajRoom room;
 
-    public ConnectionJoinAcceptedEvent(ClajConnection connection, ClajRoom room) {
+    public ConnectionJoinedEvent(ClajConnection connection, ClajRoom room) {
+      this.connection = connection;
+      this.room = room;
+    }
+  }
+  /** When a connection left a room. */
+  public static class ConnectionLeftEvent {
+    public final ClajConnection connection;
+    public final ClajRoom room;
+
+    public ConnectionLeftEvent(ClajConnection connection, ClajRoom room) {
       this.connection = connection;
       this.room = room;
     }
@@ -105,7 +119,6 @@ public class ClajEvents {
       this.room = room;
     }
   }
-
   public static class RoomCreationRejectedEvent {
     /** the connection that tried to create the room */
     public final ClajConnection connection;

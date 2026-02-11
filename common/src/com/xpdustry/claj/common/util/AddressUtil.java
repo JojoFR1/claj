@@ -25,11 +25,11 @@ public class AddressUtil {
   public static InetAddress generate(long addressHash) {
     byte[] bytes = new byte[16];
     // Use IPv6 Unique Local Address (fc00::/7), specifically fd00::/8
-    bytes[0] = (byte) 0xfd;
+    bytes[0] = (byte)0xfd;
 
     // Fill the last 8 bytes with the hash
     for (int i = 0; i < 8; i++) {
-      bytes[8 + i] = (byte) ((addressHash >> ((7 - i) * 8)) & 0xFF);
+      bytes[8 + i] = (byte)((addressHash >> ((7 - i) * 8)) & 0xFF);
     }
 
     try { return InetAddress.getByAddress(bytes); }
@@ -51,6 +51,13 @@ public class AddressUtil {
   }
 
   public static String encodeId(int conId) {
-    return "0x"+Integer.toHexString(conId);
+    char[] out = new char[10];
+    out[0] = '0';
+    out[1] = 'x';
+    for (int i=9; i>=2; i--) {
+      out[i] = "0123456789abcdef".charAt(conId & 0xF);
+      conId >>>= 4;
+    }
+    return new String(out);
   }
 }

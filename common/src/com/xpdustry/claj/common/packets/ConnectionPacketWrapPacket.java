@@ -19,6 +19,8 @@
 
 package com.xpdustry.claj.common.packets;
 
+import java.nio.ByteBuffer;
+
 import arc.net.ArcNetException;
 import arc.util.io.ByteBufferInput;
 import arc.util.io.ByteBufferOutput;
@@ -32,7 +34,7 @@ public class ConnectionPacketWrapPacket extends ConnectionWrapperPacket {
   /** Decoded object received by the client. Should be handled by the serializer. */
   public Object object;
   /** Copy of the raw packet received by the server. Should be handled by the serializer. */
-  public RawPacket raw;
+  public ByteBuffer raw;
 
   public boolean isTCP;
 

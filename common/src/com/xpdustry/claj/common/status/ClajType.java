@@ -32,6 +32,7 @@ public class ClajType {
 
   protected final byte[] rawType;
   protected final String type;
+  protected final int hash;
 
   /** @see #encode(String) */
   public ClajType(String str) {
@@ -39,6 +40,7 @@ public class ClajType {
       throw new IllegalArgumentException("no type specified");
     rawType = encode(str);
     type = decode(rawType);
+    hash = Arrays.hashCode(rawType);
   }
 
    /** @see #decode(byte[]) */
@@ -46,11 +48,13 @@ public class ClajType {
     if (data.length < 1) throw new IllegalArgumentException("no type specified");
     rawType = truncate(data, SIZE, true);
     type = decode(data);
+    hash = Arrays.hashCode(rawType);
   }
 
   protected ClajType(String str, byte[] data) {
     type = str;
     rawType = data;
+    hash = Arrays.hashCode(rawType);
   }
 
   public String type() {
@@ -63,7 +67,7 @@ public class ClajType {
 
   @Override
   public int hashCode() {
-    return Arrays.hashCode(rawType);
+    return hash;
   }
 
   @Override

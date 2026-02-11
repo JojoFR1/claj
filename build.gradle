@@ -145,6 +145,7 @@ project(":client") {
 project(":server") {
   ext.mainClassName = "com.xpdustry.claj.server.Main"
   toxopid.platforms = [ModPlatform.SERVER]
+  toxopid.compileVersion = "v154"
 
   dependencies {
     implementation project(":common")

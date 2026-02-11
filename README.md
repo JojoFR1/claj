@@ -66,7 +66,7 @@ You can also run a test server by running ``./gradlew server:run``. It will be h
 The CLaJ server can be modded using plugins that are located in the ``plugins/`` directory, on your server. <br>
 They work the same way as [Mindustry mods](https://mindustrygame.github.io/wiki/modding/2-plugins/), but only handles Java ones (not json and js) and doesn't handles sprites, icon, bundles, and others things designed for client-side.
 
-The plugin file can therefore only be ``plugin.json`` or ``plugin.hjson``, and some properties are removed. <br>
+The plugin metadata file can therefore only be ``plugin.json`` or ``plugin.hjson``, and some properties are removed. <br>
 Such as ``java`` because these can only be Java plugins, or ``texturescale`` because there is no texture handling on servers.
 
 Supported plugin properties: 
@@ -82,7 +82,7 @@ Supported plugin properties:
 
 
 ## Developers
-CLaJ is not only available for Mindustry. <br>
+CLaJ is not only compatible for Mindustry. <br>
 In fact, this system doesn't care about what's transferred between the server, clients, and host. Only communications using the CLaJ protocol are important.
 
 The project is designed to be modular, and is divided into several modules:

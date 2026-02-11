@@ -19,19 +19,53 @@
 
 package com.xpdustry.claj.common.packets;
 
+import java.nio.ByteBuffer;
+
 import arc.util.io.ByteBufferInput;
 import arc.util.io.ByteBufferOutput;
 
 
+/**
+ * Wrapper for {@link ByteBuffer} that implements {@link Packet}. <br>
+ * This is only needed due to compatibility with receivers.
+ */
 public class RawPacket implements Packet {
-  public byte[] data = {};
+  public final ByteBuffer data;
 
-  public void read(ByteBufferInput read) {
-    data = new byte[read.buffer.remaining()];
-    read.readFully(data);
+  public RawPacket(ByteBuffer buffer) {
+    data = copyRemaining(buffer);
   }
 
+  @Override
+  public void read(ByteBufferInput read) {
+    data.clear();
+    data.put(read.buffer).flip();
+  }
+
+  @Override
   public void write(ByteBufferOutput write) {
-    write.write(data);
+    write(data, write);
+  }
+
+  // Helpers
+
+  public static ByteBuffer copyRemaining(ByteBufferInput in) { return copyRemaining(in.buffer); }
+  public static ByteBuffer copyRemaining(ByteBuffer src) {
+    ByteBuffer data = ByteBuffer.allocate(src.remaining());
+    data.put(src).flip();
+    return data;
+  }
+
+  public static ByteBuffer read(ByteBufferInput read, int length) {
+    byte[] data = new byte[length];
+    read.readFully(data);
+    return ByteBuffer.wrap(data);
+  }
+
+  /** Suppresses {@code src} reading. */
+  public static void write(ByteBuffer src, ByteBufferOutput write) {
+    int pos = src.position();
+    write.buffer.put(src);
+    src.position(pos);
   }
 }

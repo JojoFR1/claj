@@ -30,6 +30,7 @@ import arc.util.Log;
 import arc.util.OS;
 import arc.util.Threads;
 
+import com.xpdustry.claj.common.status.ClajType;
 import com.xpdustry.claj.common.util.Strings;
 import com.xpdustry.claj.server.plugin.Plugins;
 import com.xpdustry.claj.server.util.NetworkSpeed;
@@ -113,12 +114,13 @@ public class ClajControl extends CommandHandler implements ApplicationListener {
     });
 
     register("status", "Display status of server and rooms.", args -> {
-      Log.info("@ rooms / @ client" + (ClajVars.relay.conToRoom.size < 2 ? "." : "s."), ClajVars.relay.rooms.size,
-               ClajVars.relay.conToRoom.size);
+      Log.info("@ rooms, @ client" + (ClajVars.relay.conToRoom.size < 2 ? "" : "s") +
+               ", @ connection" + (ClajVars.relay.getConnections().length < 2 ? "." : "s."),
+               ClajVars.relay.rooms.size, ClajVars.relay.conToRoom.size, ClajVars.relay.getConnections().length);
       Log.info("@ FPS, @ used.", Core.graphics.getFramesPerSecond(), Strings.formatBytes(Core.app.getJavaHeap()));
       NetworkSpeed net = ClajVars.relay.networkSpeed;
       if (net != null) {
-        Log.info("Speed: @/s up / @/s down. Total: @ up / @ down.",
+        Log.info("Speed: @/s up, @/s down. Total: @ up, @ down.",
                  Strings.formatBytes((long)net.uploadSpeed()), Strings.formatBytes((long)net.downloadSpeed()),
                  Strings.formatBytes(net.totalUpload()), Strings.formatBytes(net.totalDownload()));
       } else Log.info("Network speed calculator is disabled.");
@@ -128,13 +130,13 @@ public class ClajControl extends CommandHandler implements ApplicationListener {
         return;
       }
       Log.info("Rooms:");
-      for (ClajRoom room : ClajVars.relay.rooms.values()) {
-        net = room.transferredPackets;
-        Log.info("&lk|&fr @: @ client" + (room.clients.isEmpty() ? "" : "s") +
-                 ". Rate: @ p/s in / @ p/s out. Total: @ packets in / @ packets out.",
-                 room.sid, room.clients.size + 1, Mathf.ceil(net.uploadSpeed()), Mathf.ceil(net.downloadSpeed()),
-                 net.totalUpload(), net.totalDownload());
-      }
+      ClajVars.relay.rooms.eachValue(r -> {
+        NetworkSpeed n = r.transferredPackets;
+        Log.info("&lk|&fr @: @ client" + (r.clients.isEmpty() ? "" : "s") +
+                 ". Rate: @ p/s in, @ p/s out. Total: @ packets in, @ packets out.",
+                 r.sid, r.clients.size + 1, Mathf.ceil(n.uploadSpeed()), Mathf.ceil(n.downloadSpeed()),
+                 n.totalUpload(), n.totalDownload());
+      });
     });
 
     // Why i added this command? it's useless for this kind of project
@@ -179,6 +181,86 @@ public class ClajControl extends CommandHandler implements ApplicationListener {
       } else Log.info("No mod with name '@' found.", args[0]);
     });
 
+    register("rooms", "Displays created rooms.", args -> {
+      if (ClajVars.relay.rooms.isEmpty()) {
+        Log.info("No created rooms.");
+        return;
+      }
+
+      Log.info("Rooms: [total: @]", ClajVars.relay.rooms.size);
+      ClajVars.relay.rooms.eachValue(r -> {
+        Log.info("&lk|&fr Room @: [@ client" + (r.clients.isEmpty() ? "" : "s") + ", type: @]", r.sid,
+                 r.clients.size + 1, r.type);
+        Log.info("&lk| |&fr [H] Connection @&fr - @", r.host.sid, r.host.address);
+        for (ClajConnection c : r.clients.values())
+          Log.info("&lk| |&fr [C] Connection @&fr - @", c.sid, c.address);
+        Log.info("&lk|&fr");
+      });
+    });
+
+    register("refresh", "<room|list> [id|type] [force]", "Refresh a room state or a room list.", args -> {
+      switch (args[0]) {
+        case "room":
+          if (args.length == 1) {
+            Log.err("A room id must be provided. (e.g. @)", "Q1w2E3r4T5y=");
+            return;
+          }
+
+          ClajRoom room = ClajVars.relay.get(args[1]);
+          if (room == null) {
+            Log.err("Room @ not found.", args[1]);
+            return;
+          }
+
+          boolean force = args.length == 3 ? args[2].equals("force") : false;
+          if (!force && args.length == 3)
+            Log.err("Invalid argument! Must be 'force'.");
+          else if (!force && !room.isPublic)
+            Log.err("The room is not public, state cannot be requested. (Use 'force' argument to request anyway)");
+          else if (!force && !room.canRequestState)
+            Log.err("The room doesn't want his state to be requested. (Use 'force' argument to request anyway)");
+          else if (room.requestState())
+            Log.info("State of room @ has been requested.", room.sid);
+          else
+            Log.info("A request is already pending, please wait a moment. ");
+          break;
+
+        case "list":
+          if (args.length == 1) {
+            if (ClajVars.relay.types.isEmpty()) Log.info("No created rooms.");
+            else {
+              ClajVars.relay.refreshRoomLists();
+              Log.info("Refreshing room lists... This can be long.");
+            }
+            return;
+          }
+
+          byte[] t = args[1].getBytes(Strings.utf8);
+          if (t.length < 1 || t.length > ClajType.SIZE) {
+            Log.err("Invalid CLaJ type.");
+            return;
+          }
+
+          ClajType type = new ClajType(t);
+          if (!ClajVars.relay.types.containsKey(type)) {
+            Log.err("No room with type @ found.", type);
+            return;
+          }
+
+          force = args.length == 3 ? args[2].equals("force") : false;
+          if (!force && args.length == 3)
+            Log.err("Invalid argument! Must be 'force'.");
+          else if (ClajVars.relay.refreshRoomList(type, force))
+            Log.info("Refreshing room list of type @... This can take a moment.", type);
+          else
+            Log.info("A refresh is already in progress, please wait a moment. (Use 'force' argument to refresh anyway)");
+          break;
+
+        default:
+          Log.err("Invalid argument! Must be 'room' or 'list'.");
+      }
+    });
+
     register("debug", "[on|off]", "Enable/Disable the debug log level.", args -> {
       if (args.length == 0) Log.info("Debug log level is @.", ClajConfig.debug ? "enabled" : "disabled");
 
@@ -195,22 +277,6 @@ public class ClajControl extends CommandHandler implements ApplicationListener {
         Log.info("Debug log level enabled.");
 
       } else Log.err("Invalid argument.");
-    });
-
-    register("rooms", "Displays created rooms.", args -> {
-      if (ClajVars.relay.rooms.isEmpty()) {
-        Log.info("No created rooms.");
-        return;
-      }
-
-      Log.info("Rooms: [total: @]", ClajVars.relay.rooms.size);
-      for (ClajRoom r : ClajVars.relay.rooms.values()) {
-        Log.info("&lk|&fr Room @: [@ client" + (r.clients.isEmpty() ? "" : "s") + ']', r.sid, r.clients.size + 1);
-        Log.info("&lk| |&fr [H] Connection @&fr - @", r.host.sid, r.host.address);
-        for (ClajConnection c : r.clients.values())
-          Log.info("&lk| |&fr [C] Connection @&fr - @", c.sid, c.address);
-        Log.info("&lk|&fr");
-      }
     });
 
     register("spam-limit", "[amount]", "Sets packet spam limit. (0 to disable)", args -> {
@@ -310,9 +376,9 @@ public class ClajControl extends CommandHandler implements ApplicationListener {
       } else Log.err("Invalid argument.");
     });
 
-    register("say", "<room|all> <text...>", "Send a message to a room or all rooms.", args -> {
+    register("say", "<roomId|all> <text...>", "Send a message to a room or all rooms.", args -> {
       if (args[0].equals("all")) {
-        for (ClajRoom r : ClajVars.relay.rooms.values()) r.message(args[1]);
+        ClajVars.relay.rooms.eachValue(r -> r.message(args[1]));
         Log.info("Message sent to all rooms.");
         return;
       }
@@ -324,9 +390,9 @@ public class ClajControl extends CommandHandler implements ApplicationListener {
       } else Log.err("Room @ not found.", args[0]);
     });
 
-    register("alert", "<room|all> <text...>", "Send a popup message to the host of a room or all rooms.", args -> {
+    register("alert", "<roomId|all> <text...>", "Send a popup message to the host of a room or all rooms.", args -> {
       if (args[0].equals("all")) {
-        for (ClajRoom r : ClajVars.relay.rooms.values()) r.popup(args[1]);
+        ClajVars.relay.rooms.eachValue(r -> r.popup(args[1]));
         Log.info("Popup sent to all room hosts.");
         return;
       }

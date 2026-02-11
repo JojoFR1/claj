@@ -40,11 +40,11 @@ public class ClajPackets {
     ClajNet.register(RoomConfigPacket::new);
     ClajNet.register(RoomStateRequestPacket::new);
     ClajNet.register(RoomStatePacket::new);
-    ClajNet.register(RoomListRequestPacket::new);
-    ClajNet.register(RoomListPacket::new);
     ClajNet.register(RoomInfoRequestPacket::new);
     ClajNet.register(RoomInfoDeniedPacket::new);
     ClajNet.register(RoomInfoPacket::new);
+    ClajNet.register(RoomListRequestPacket::new);
+    ClajNet.register(RoomListPacket::new);
     ClajNet.register(ServerInfoPacket::new);
     ClajNet.register(ClajTextMessagePacket::new);
     ClajNet.register(ClajMessagePacket::new);

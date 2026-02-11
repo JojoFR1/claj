@@ -43,14 +43,18 @@ public class StreamSender extends InputStreamSender {
   public final boolean compressed;
   int id;
 
+  public StreamSender(Connection connection, InputStream stream, byte type, int length) {
+    this(connection, stream, type, length, 4096, true);
+  }
+
   public StreamSender(Connection connection, InputStream stream, byte type, int length,
-                      int chunkSize, boolean compressed) {
+                      int chunkSize, boolean isCompressed) {
     super(stream, chunkSize);
     this.connection = connection;
     this.input = stream;
     this.type = type;
     this.length = length;
-    this.compressed = compressed;
+    this.compressed = isCompressed;
 
     connection.addListener(this);
   }

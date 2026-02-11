@@ -25,6 +25,7 @@ import arc.func.Cons;
 import arc.net.DcReason;
 
 import com.xpdustry.claj.api.net.ProxyClient;
+import com.xpdustry.claj.api.net.VirtualConnection;
 import com.xpdustry.claj.common.ClajPackets.Connect;
 import com.xpdustry.claj.common.ClajPackets.Disconnect;
 import com.xpdustry.claj.common.net.stream.StreamSender;
@@ -36,10 +37,10 @@ import com.xpdustry.claj.common.status.CloseReason;
 /** The claj client that redirects packets from the relay to the local mindustry server. */
 public class ClajProxy extends ProxyClient {
   /** Constant value saying that no room is created. This should be handled as an invalid id. */
-  public static final long UNCREATED_ROOM = -1;
+  public static final long UNCREATED_ROOM = 0;
 
   public final ClajProvider provider;
-  public boolean isPublic, isProtected;
+  public boolean isPublic, isProtected, allowStateRequests;
   public short roomPassword;
 
   protected Cons<ClajLink> roomCreated;
@@ -54,39 +55,18 @@ public class ClajProxy extends ProxyClient {
     receiver.handle(Connect.class, this::requestRoomId);
     receiver.handle(Disconnect.class, () -> runRoomClose(CloseReason.error));
 
-    receiver.handle(ConnectionJoinPacket.class, p -> {
-      if (!roomCreated() || getConnection(p.conID) != null) return;
-      // Check if the link is the right
-      if (p.roomId != roomId) close(p.conID, DcReason.error);
-      else conConnected(p.conID, p.addressHash);
-    });
-    receiver.handle(ConnectionClosedPacket.class, p -> {
-      if (roomCreated()) conDisconnected(p.conID, p.reason);
-    });
-    receiver.handle(ConnectionPacketWrapPacket.class, p -> {
-      if (roomCreated()) conReceived(p.conID, p.object);
-    });
-    receiver.handle(ConnectionIdlingPacket.class, p -> {
-      if (roomCreated()) conIdle(p.conID);
-    });
+    receiver.handle(ConnectionJoinPacket.class, p -> conConnected(p.conID, p.addressHash));
+    receiver.handle(ConnectionClosedPacket.class, p -> conDisconnected(p.conID, p.reason));
+    receiver.handle(ConnectionPacketWrapPacket.class, p -> conReceived(p.conID, p.object));
+    receiver.handle(ConnectionIdlingPacket.class, p -> conIdle(p.conID));
 
-    receiver.handle(RoomClosedPacket.class, p -> {
-      runRoomClose(p.reason);
-    });
-    receiver.handle(RoomLinkPacket.class, p -> {
-      if (!roomCreated()) runRoomCreated(p.roomId);
-    });
+    receiver.handle(RoomClosedPacket.class, p -> runRoomClose(p.reason));
+    receiver.handle(RoomLinkPacket.class, p -> runRoomCreated(p.roomId));
     receiver.handle(RoomStateRequestPacket.class, this::notifyGameState);
 
-    receiver.handle(ClajTextMessagePacket.class, p -> {
-      provider.showTextMessage(p.message);
-    });
-    receiver.handle(ClajMessagePacket.class, p -> {
-      provider.showMessage(p.message);
-    });
-    receiver.handle(ClajPopupPacket.class, p -> {
-      provider.showPopup(p.message);
-    });
+    receiver.handle(ClajTextMessagePacket.class, p -> provider.showTextMessage(p.message));
+    receiver.handle(ClajMessagePacket.class, p -> provider.showMessage(p.message));
+    receiver.handle(ClajPopupPacket.class, p -> provider.showPopup(p.message));
   }
 
   /** This method must be used instead of others connect methods */
@@ -107,10 +87,11 @@ public class ClajProxy extends ProxyClient {
   protected void postTask(Runnable run) { provider.postTask(run); }
 
   protected void runRoomCreated(long roomId) {
+    if (roomCreated()) return;
     ignoreExceptions = true;
     this.roomId = roomId;
     link = new ClajLink(connectHost.getHostName(), connectTcpPort, roomId);
-    // -1 is not allowed since it's used to specify an uncreated room
+    // 0 is not allowed since it's used to specify an uncreated room
     if (roomId == UNCREATED_ROOM) return;
     if (roomCreated != null) postTask(roomCreated, link);
     notifyConfiguration();
@@ -128,7 +109,7 @@ public class ClajProxy extends ProxyClient {
     close();
   }
 
-  /** {@code -1} means no room created. */
+  /** {@code 0} means no room created. */
   public long roomId() {
     return roomId;
   }
@@ -158,44 +139,52 @@ public class ClajProxy extends ProxyClient {
     sendTCP(makeRoomCreatePacket(provider.getVersion().majorVersion, provider.getType()));
   }
 
-  public void setDefaultConfiguration(boolean isPublic, boolean isProtected, short roomPassword) {
+  public void setDefaultConfiguration(boolean isPublic, boolean isProtected, short roomPassword,
+                                      boolean allowStateRequests) {
     boolean notify = this.isPublic != isPublic
                   || this.isProtected != isProtected
-                  || this.roomPassword != roomPassword;
+                  || this.roomPassword != roomPassword
+                  || this.allowStateRequests != allowStateRequests;
     this.isPublic = isPublic;
     this.isProtected = isProtected;
     this.roomPassword = roomPassword;
+    this.allowStateRequests = allowStateRequests;
     if (notify) notifyConfiguration();
   }
 
   public void notifyConfiguration() {
     if (!roomCreated()) return;
-    sendTCP(makeRoomConfigPacket(isPublic, isProtected, roomPassword));
+    sendTCP(makeRoomConfigPacket(isPublic, isProtected, roomPassword, allowStateRequests));
   }
 
   public void notifyGameState() {
     if (!roomCreated()) return;
-    ByteBuffer state = (ByteBuffer)provider.writeRoomState(this).flip();
+    ByteBuffer state = allowStateRequests ? provider.writeRoomState(this) : null;
     Packet p = makeRoomStatePacket(roomId, state);
+    if (state == null) {
+      sendTCP(p);
+      return;
+    }
+    state.flip();
     // In case of a big state, chunk it
-    if (state.remaining() < 8128) sendTCP(p);
-    else if (state.remaining() > Character.MAX_VALUE)
-      throw new IllegalArgumentException("Buffer size must be less than " + Character.MAX_VALUE);
+    if (state.remaining() < RoomStatePacket.SPLIT_BUFF_SIZE) sendTCP(p);
+    else if (state.remaining() > RoomStatePacket.MAX_BUFF_SIZE)
+      throw new IllegalArgumentException("Buffer size must be less than " + RoomStatePacket.MAX_BUFF_SIZE);
     else StreamSender.send(this, p);
   }
 
   protected Packet makeRoomStatePacket(long roomId, ByteBuffer state) {
     RoomStatePacket p = new RoomStatePacket();
-    p.roomId = roomId;
     p.state = state;
     return p;
   }
 
-  protected Packet makeRoomConfigPacket(boolean isPublic, boolean isProtected, short password) {
+  protected Packet makeRoomConfigPacket(boolean isPublic, boolean isProtected, short password, boolean requestState) {
     RoomConfigPacket p = new RoomConfigPacket();
     p.isPublic = isPublic;
     p.isProtected = isProtected;
     p.password = password;
+    p.requestState = requestState;
     return p;
   }
 
@@ -225,5 +214,27 @@ public class ClajProxy extends ProxyClient {
     p.conID = conId;
     p.reason = reason;
     return p;
+  }
+
+  @Override
+  protected VirtualConnection conConnected(int conId, long addressHash) {
+    if (!roomCreated()) return null;
+    VirtualConnection con = getConnection(conId);
+    return con == null ? super.conConnected(conId, addressHash) : con;
+  }
+
+  @Override
+  protected VirtualConnection conDisconnected(int conId, DcReason reason) {
+    return roomCreated() ? super.conDisconnected(conId, reason) : null;
+  }
+
+  @Override
+  protected VirtualConnection conReceived(int conId, Object object) {
+    return roomCreated() ? super.conReceived(conId, object) : null;
+  }
+
+  @Override
+  protected VirtualConnection conIdle(int conId) {
+    return roomCreated() ? super.conIdle(conId) : null;
   }
 }

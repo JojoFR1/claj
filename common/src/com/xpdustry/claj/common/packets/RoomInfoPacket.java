@@ -26,20 +26,23 @@ import com.xpdustry.claj.common.status.ClajType;
 
 
 public class RoomInfoPacket extends RoomStatePacket {
+  public long roomId;
   public boolean isProtected;
   public ClajType type;
 
   @Override
   protected void readImpl(ByteBufferInput read) {
-    super.readImpl(read);
+    roomId = read.readLong();
     isProtected = read.readBoolean();
     type = ClajType.read(read.buffer);
+    super.readImpl(read);
   }
 
   @Override
   public void write(ByteBufferOutput write) {
-    super.write(write);
+    write.writeLong(roomId);
     write.writeBoolean(isProtected);
     type.write(write.buffer);
+    super.write(write);
   }
 }

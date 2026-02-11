@@ -24,7 +24,7 @@ import arc.util.io.ByteBufferOutput;
 
 
 public abstract class ConnectionWrapperPacket extends DelayedPacket {
-  public int conID = -1;
+  public int conID;
 
   @Override
   protected void readImpl(ByteBufferInput read) {

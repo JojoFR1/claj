@@ -24,6 +24,8 @@ import arc.net.DcReason;
 
 
 public interface NetListenerFilter {
+  NetListenerFilter defaultFilter = new NetListenerFilter() {};
+
   default boolean connected(Connection connection) { return true; }
   default boolean disconnected(Connection connection, DcReason reason) { return true; }
   default boolean received(Connection connection, Object object) { return true; }

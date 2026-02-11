@@ -297,7 +297,8 @@ public class Strings extends arc.util.Strings {
     final byte[] value = str.getBytes();
     final int len = value.length;
     if (len == 0 || count == 0)  return "";
-    if (Integer.MAX_VALUE / count < len) throw new OutOfMemoryError("Required length exceeds implementation limit");
+    if (Integer.MAX_VALUE / count < len)
+      throw new OutOfMemoryError("Required length exceeds implementation limit");
     if (len == 1) {
       final byte[] single = new byte[count];
       Arrays.fill(single, value[0]);
@@ -388,7 +389,8 @@ public class Strings extends arc.util.Strings {
    * Re-implementation of {@link JsonValue#prettyPrint(OutputType, Writer)},
    * because the ident isn't correct and the max object size before new line is too big.
    */
-  public static void jsonPrettyPrint(JsonValue object, Writer writer, OutputType outputType, int indent) throws IOException {
+  public static void jsonPrettyPrint(JsonValue object, Writer writer, OutputType outputType, int indent)
+  throws IOException {
     switch (object.type()) {
       case object:
         if (object.child == null) writer.write("{}");

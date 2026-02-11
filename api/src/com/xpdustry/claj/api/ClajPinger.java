@@ -28,6 +28,8 @@ import arc.net.ArcNet;
 import arc.net.Client;
 import arc.net.DcReason;
 import arc.net.FrameworkMessage;
+import arc.struct.LongMap;
+import arc.struct.ObjectSet;
 import arc.struct.Seq;
 import arc.util.Reflect;
 import arc.util.io.ByteBufferInput;
@@ -50,7 +52,7 @@ public class ClajPinger extends Client {
                     pingTimeout = connectTimeout,
                     joinTimeout = connectTimeout,
                     infoTimeout = 10 * 1000,
-                    listTimeout = 30 * 1000;
+                    listTimeout = 45 * 1000;
 
   protected final ClajProvider provider;
   protected final ClientReceiver receiver;
@@ -73,7 +75,7 @@ public class ClajPinger extends Client {
   protected Cons<RejectReason> joinDenied;
   protected Cons<Exception> joinFailed;
   protected RoomJoinRequestPacket lastRequest;
-  protected volatile long requestedRoom = -1;
+  protected volatile long requestedRoom = ClajProxy.UNCREATED_ROOM;
   protected volatile boolean joining;
 
   protected Cons<ClajRoom<?>> infoSuccess;
@@ -83,40 +85,33 @@ public class ClajPinger extends Client {
 
   public ClajPinger(ClajProvider provider) {
     super(8192, 8192, new Serializer());
-    // Disable ArcNet timeout, we handle it ourselves
-    setTimeout(0);
     ((Serializer)getSerialization()).set(this);
     this.provider = provider;
     this.receiver = new ClientReceiver(this, null); // no need to delegate to the main thread
 
     receiver.handle(RoomJoinAcceptedPacket.class, p -> {
-      if (p.roomId != -1 && p.roomId == requestedRoom)
+      if (p.roomId != ClajProxy.UNCREATED_ROOM && p.roomId == requestedRoom)
         runJoinSuccess();
     });
     receiver.handle(RoomJoinDeniedPacket.class, p -> {
-      if (p.roomId != -1 && p.roomId == requestedRoom)
+      if (p.roomId != ClajProxy.UNCREATED_ROOM && p.roomId == requestedRoom)
         runJoinDenied(p.reason);
     });
 
-    receiver.handle(RoomListPacket.class, p -> {
-      runListInfo(p.size, p.rooms, p.isProtected, p.states);
-    });
+    receiver.handle(RoomListPacket.class, p -> runListInfo(p.states, p.protectedRooms));
     receiver.handle(RoomInfoPacket.class, p -> {
-      if (p.roomId == requestedRoom)
-        runInfoSuccess(p.roomId, p.isProtected, p.type, p.state);
+      if (p.roomId == requestedRoom) runInfoSuccess(p.roomId, p.isProtected, p.type, p.state);
     });
     receiver.handle(RoomInfoDeniedPacket.class, this::runInfoNotFound);
 
-    receiver.handle(ServerInfoPacket.class, p -> {
-      runPingSuccess(p.version);
-    });
+    receiver.handle(ServerInfoPacket.class, p -> runPingSuccess(p.version));
   }
 
   @Override
   public void update(int t) {
     try {
       super.update(canceling ? 0 : t);
-      if (isRequestedTimedOut()) timeout();
+      if (isRequestTimedOut()) timeout();
       if (canceling) close();
     } catch (Exception e) { ArcNet.handleError(e); }
   }
@@ -198,7 +193,7 @@ public class ClajPinger extends Client {
   protected <T> void postTask(Cons<T> consumer, T object) { postTask(() -> consumer.get(object)); }
   protected void postTask(Runnable run) { provider.postTask(run); }
 
-  public boolean isRequestedTimedOut() {
+  public boolean isRequestTimedOut() {
     return timeout > 0 && System.currentTimeMillis() >= timeout;
   }
 
@@ -243,17 +238,17 @@ public class ClajPinger extends Client {
     listing = false;
   }
 
-  protected void runListInfo(int size, long[] rooms, boolean[] isProtected, ByteBuffer[] states) {
+  protected void runListInfo(LongMap<ByteBuffer> states, ObjectSet<Long> protectedRooms) {
     // Avoid creating useless objects if the callback is not defined.
     if (listInfo != null) {
-      Seq<ClajRoom<?>> roomList = new Seq<>(size);
+      Seq<ClajRoom<?>> roomList = new Seq<>(states.size);
       ClajType type = provider.getType();
-      for (int i=0; i<size; i++) {
-        if (rooms[i] == ClajProxy.UNCREATED_ROOM) continue; // ignore invalid rooms
+      for (LongMap.Entry<ByteBuffer> e : states) {
+        if (e.key == ClajProxy.UNCREATED_ROOM) continue; // ignore invalid rooms
         roomList.add(new ClajRoom<>(
-          rooms[i], true, isProtected[i],
-          provider.readRoomState(rooms[i], type, states[i]),
-          new ClajLink(connectHost, connectPort, rooms[i]),
+          e.key, true, protectedRooms.contains(e.key),
+          e.value == null ? null : provider.readRoomState(e.key, type, e.value),
+          new ClajLink(connectHost, connectPort, e.key),
           type
         ));
       }
@@ -274,7 +269,7 @@ public class ClajPinger extends Client {
     joinSuccess = success;
     joinDenied = reject;
     joinFailed = failed;
-    requestedRoom = -1;
+    requestedRoom = ClajProxy.UNCREATED_ROOM;
     lastRequest = null;
     setRequestTimeout(0);
     joining = false;
@@ -303,7 +298,7 @@ public class ClajPinger extends Client {
     infoSuccess = (Cons)success;
     infoNotFound = notFound;
     infoFailed = failed;
-    requestedRoom = -1;
+    requestedRoom = ClajProxy.UNCREATED_ROOM;
     setRequestTimeout(0);
     infoing = false;
   }
@@ -312,7 +307,7 @@ public class ClajPinger extends Client {
     if (infoSuccess != null) {
       ClajRoom<?> room = new ClajRoom<>(
         roomId, true, isProtected,
-        provider.readRoomState(roomId, type, state),
+        state == null ? null : provider.readRoomState(roomId, type, state),
         new ClajLink(connectHost, connectPort, roomId),
         type
       );

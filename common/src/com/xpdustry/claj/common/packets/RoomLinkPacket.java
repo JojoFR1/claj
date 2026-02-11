@@ -24,8 +24,8 @@ import arc.util.io.ByteBufferOutput;
 
 
 public class RoomLinkPacket extends DelayedPacket {
-  /** {@code -1} means no room. */
-  public long roomId = -1;
+  /** {@code 0} means no room. */
+  public long roomId;
 
   @Override
   protected void readImpl(ByteBufferInput read) {

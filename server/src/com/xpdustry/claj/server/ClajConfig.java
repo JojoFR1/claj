@@ -37,7 +37,7 @@ public class ClajConfig {
   /** Limit for packet count sent within 3 sec that will lead to a disconnect. Ignored for room hosts. */
   public static int spamLimit = 300;
   /** Limit of room join requests per minute. The server will act as if the room had not been found. */
-  public static int joinLimit = 30;
+  public static int joinLimit = 40;
   /**
    * Whether to accept or not clients who attempt to join a room without specifying their CLaJ implementation. <br>
    * Setting this to {@code false} will break compatibility with older CLaJ versions.
@@ -48,10 +48,23 @@ public class ClajConfig {
   public static boolean warnDeprecated = true;
   /** Warn all clients when the server is closing */
   public static boolean warnClosing = true;
+  /** Time to wait before exiting the server when closing it. (in seconds) */
+  public static float closeWait = 10;
   /** Simple ip blacklist */
   public static ObjectSet<String> blacklist = new ObjectSet<>();
   /** List of implementation not accepted by the server. */
   public static ObjectSet<ClajType> blacklistedTypes = new ObjectSet<>();
+  /** */
+  public static int stateLifetime = 60 * 1000;
+  /** */
+  public static int stateTimeout = 20 * 1000;
+  /** */
+  public static int listLifetime = 60 * 1000;
+  /**
+   * Listing public rooms can be very long when requesting states,
+   * this defines the time before the list is send as is, even some state was not received.
+   */
+  public static int listTimeout = 30 * 1000;
 
   @SuppressWarnings("unchecked")
   public static void load() {

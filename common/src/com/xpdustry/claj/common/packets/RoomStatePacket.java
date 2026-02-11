@@ -25,22 +25,24 @@ import arc.util.io.ByteBufferInput;
 import arc.util.io.ByteBufferOutput;
 
 
-public class RoomStatePacket extends RoomLinkPacket {
+public class RoomStatePacket extends DelayedPacket {
+  public static final int MAX_BUFF_SIZE = Character.MAX_VALUE;
+  /** Packet should be sent by stream if {@link #state} size is above this limit. */
+  public static final int SPLIT_BUFF_SIZE = 8128;
+
   public ByteBuffer state;
 
   @Override
   protected void readImpl(ByteBufferInput read) {
-    super.readImpl(read);
-    byte[] data = new byte[read.readChar()];
-    read.readFully(data);
-    state = ByteBuffer.wrap(data);
+    state = RawPacket.read(read, read.readChar());
   }
 
   @Override
   public void write(ByteBufferOutput write) {
-    super.write(write);
+    int limit = state.limit();
+    if (state.remaining() > MAX_BUFF_SIZE) state.limit(MAX_BUFF_SIZE);
     write.writeChar(state.remaining());
-    //write.write(state.array(), state.position(), state.remaining());
-    write.buffer.put(state);
+    RawPacket.write(state, write);
+    state.limit(limit);
   }
 }
