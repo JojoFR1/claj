@@ -69,7 +69,7 @@ public class RoomSettingsDialog extends BaseDialog {
 
   public RoomSettingsDialog() {
     super("@claj.settings.title");
-    cont.defaults().width(400f);
+    cont.defaults().width(480f);
 
     addCloseButton();
     buttons.button("@save", Icon.save, () -> {
@@ -97,14 +97,16 @@ public class RoomSettingsDialog extends BaseDialog {
       settings.image().height(3).pad(5).color(Pal.accent).growX().row();
       settings.table(general -> {
         general.left();
-        general.add(isPublic).tooltip("@claj.settings.public.help").left().padTop(5f).row();
+        Vars.ui.addDescTooltip(general.add(isPublic).padTop(5f).left().get(), "@claj.settings.public.help");
+        general.row();
         general.table(inner -> {
-          inner.add(isProtected).left().tooltip("@claj.settings.protected.help");
+          Vars.ui.addDescTooltip(inner.add(isProtected).left().get(), "@claj.settings.protected.help");
           inner.button(Icon.edit, fixedEmptyi, 30, () -> ClajUi.password.show(this::setPassword, false))
                .disabled(t -> !isProtected.isChecked()).padLeft(20f).marginBottom(5).get().getImage().setScale(0.9f);
         }).left().padTop(5f).row();
-        general.add(autoHost).left().disabled(true).tooltip("@claj.settings.auto-host.help").padTop(5f).padBottom(5f)
-               .row(); // WIP
+        Vars.ui.addDescTooltip(general.add(autoHost).left().disabled(true).padTop(5f).padBottom(5f)
+                                      .get(), "@claj.settings.auto-host.help"); // WIP
+        general.row();
         newTextSlider(general, playerLimit, "@claj.settings.max-players", v -> {
           v = Mathf.clamp(v, 0, 99);
           return UI.formatAmount(v == 0 ? Long.MAX_VALUE : v);
@@ -122,7 +124,8 @@ public class RoomSettingsDialog extends BaseDialog {
         info.add(address).left().padTop(5).row();
         info.add("@claj.settings.room-id").left().padRight(15).padTop(5);
         info.add(roomId).left().padTop(5).row();
-        info.add("@claj.password.field").left().tooltip("@claj.settings.password.help").padRight(15).padTop(5);
+        Vars.ui.addDescTooltip(info.add("@claj.password.field").left().padRight(15).padTop(5)
+                                   .get(), "@claj.settings.password.help");
         info.table(inner -> {
           inner.add(password).left().width(RoomPasswordDialog.DIGITS * 19);
           inner.button(Icon.eyeSmall, Styles.emptyi, 25, this::togglePassword).left().update(b -> {
@@ -188,7 +191,7 @@ public class RoomSettingsDialog extends BaseDialog {
       address.setText(link.host + ':' + link.port);
       roomId.setText(link.encodedRoomId);
     } else {
-      address.setText("----------:---");
+      address.setText("------------:----");
       roomId.setText("------------");
     }
     setPassword((short)Core.settings.getInt("claj-room-password", 0));
@@ -210,14 +213,17 @@ public class RoomSettingsDialog extends BaseDialog {
     Core.settings.put("claj-playerlimit",
       (int)Mathf.clamp(playerLimit.getValue(), playerLimit.getMinValue(), playerLimit.getMaxValue()));
 
-    Claj.get().proxies.get().setDefaultConfiguration(isPublic.isChecked(), isProtected.isChecked(), lastPassword);
+    // Allow state requests by default
+    Claj.get().proxies.get()
+        .setDefaultConfiguration(isPublic.isChecked(), isProtected.isChecked(), lastPassword, true);
   }
 
   public void setSettings() {
     Claj.get().proxies.get().setDefaultConfiguration(
       Core.settings.getBool("claj-room-public", false),
       Core.settings.getBool("claj-room-protected", false),
-      (short)Core.settings.getInt("claj-room-password", 0)
+      (short)Core.settings.getInt("claj-room-password", 0),
+      true
     );
   }
 

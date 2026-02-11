@@ -100,7 +100,7 @@ public class RoomPasswordDialog extends BaseDialog {
     valid = password.length() == DIGITS && Strings.matches(password, Character::isDigit);
     if (valid) {
       int parsed = Strings.parseInt(password, -1);
-      this.password = parsed < MIN_VALUE || parsed > MAX_VALUE ? -1 : (short)parsed;
+      this.password = parsed < MIN_VALUE || parsed > MAX_VALUE ? ClajPinger.NO_PASSWORD : (short)parsed;
     }
     return valid;
   }

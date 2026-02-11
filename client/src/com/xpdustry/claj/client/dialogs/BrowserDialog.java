@@ -25,7 +25,9 @@ import arc.func.Cons;
 import arc.graphics.Color;
 import arc.input.KeyCode;
 import arc.math.Mathf;
+import arc.scene.ui.Button;
 import arc.scene.ui.TextButton.TextButtonStyle;
+import arc.scene.ui.Tooltip;
 import arc.scene.ui.layout.Collapser;
 import arc.scene.ui.layout.Scl;
 import arc.scene.ui.layout.Table;
@@ -205,6 +207,7 @@ public class BrowserDialog extends BaseDialog {
   public void refreshServer(Server server, Table table) {
     if (refreshingList || !refreshing.add(server)) return;
     servers.put(server, table);
+    //TODO: do not refresh when hidden
     pingAndListServer(server, table, () -> refreshing.remove(server), e -> refreshing.remove(server));
   }
 
@@ -349,14 +352,18 @@ public class BrowserDialog extends BaseDialog {
         head.add('(' + host + ')', Pal.lightishGray).pad(5).growX().left().bottom();
       }
       if (refresh != null)
-        head.button(Icon.refresh, Styles.emptyi, refresh).size(40f).padRight(3).right()
-            .tooltip("@claj.browser.refresh-rooms");
-      head.button(Icon.downOpen, Styles.emptyi, () -> {
+        Vars.ui.addDescTooltip(head.button(Icon.refresh, Styles.emptyi, refresh).size(40f).padRight(3).right()
+                                   .get(), "@claj.browser.refresh-rooms");
+      Button button = head.button(Icon.downOpen, Styles.emptyi, () -> {
         coll.toggle(false);
         Core.settings.put("claj-collapsed-" + name, coll.isCollapsed());
       }).size(40f).padRight(11).right()
-        .update(i -> i.getStyle().imageUp = coll.isCollapsed() ? Icon.downOpen : Icon.upOpen)
-        .tooltip(t -> t.label(() -> "@claj.browser.rooms." + (coll.isCollapsed() ? "show" : "hide")));
+        .update(i -> i.getStyle().imageUp = coll.isCollapsed() ? Icon.downOpen : Icon.upOpen).get();
+      Tooltip tip = new Tooltip(t ->
+        t.background(Styles.black8).margin(4f)
+         .label(() -> "@claj.browser.rooms." + (coll.isCollapsed() ? "show" : "hide")).color(Color.lightGray));
+      tip.allowMobile = true;
+      button.addListener(tip);
     }).padTop(10).growX().row();
     dest.image().pad(5, 10, 5, 16).height(3).color(Pal.accent).growX().row();
     dest.add(coll).pad(5).padRight(0).padBottom(10).growX().row();
@@ -418,7 +425,8 @@ public class BrowserDialog extends BaseDialog {
         filterRooms();
       }).grow().pad(8);
       search.button(Icon.zoom, Styles.emptyi, this::refreshAll).size(50f);
-      search.button(Icon.refresh, Styles.emptyi, this::refreshAll).size(50f).tooltip("@servers.refresh");
+      Vars.ui.addDescTooltip(search.button(Icon.refresh, Styles.emptyi, this::refreshAll).size(50f)
+                                   .get(), "@servers.refresh");
     }).width(columns == 1 ? width : MIN_CARD_SIZE * Math.min(2, columns)).height(50f).pad(4).padBottom(25).row();
 
     cont.pane(hosts).width((width + 5) * columns + 33).pad(0).get().setScrollingDisabled(true, false);

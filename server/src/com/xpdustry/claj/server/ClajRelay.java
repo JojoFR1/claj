@@ -324,7 +324,6 @@ public class ClajRelay extends Server implements ApplicationListener {
   }
 
   public void onRoomState(ClajConnection connection, ClajRoom room, ByteBuffer state) {
-    Log.info("received state!");
     if (checkRoomHost(connection, room, MessageType.statingDenied,
                       "Connection @ tried to set state of room @ but is not the host.")) return;
     setRoomState(room, state);

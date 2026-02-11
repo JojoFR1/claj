@@ -62,9 +62,9 @@ public class JoinDialog extends BaseDialog {
     cont.table(table -> {
       table.add("@claj.join.link").padRight(10f).left();
       table.add(linkField).maxTextLength(64).valid(this::setLink).height(50f).growX().get();
-      table.button(Icon.paste, Styles.emptyi, this::importLink).size(50f).padLeft(5)
-           .tooltip("@schematic.copy.import").row();
-      table.add();
+      Vars.ui.addDescTooltip(table.button(Icon.paste, Styles.emptyi, this::importLink).size(50f).padLeft(5)
+                             .get(), "@schematic.copy.import");
+      table.row().add();
       table.labelWrap(() -> output).left().growX().padTop(5).row();
     }).row();
 

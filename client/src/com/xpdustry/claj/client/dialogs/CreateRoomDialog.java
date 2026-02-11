@@ -24,6 +24,8 @@ import arc.Events;
 import arc.func.Cons;
 import arc.graphics.Color;
 import arc.input.KeyCode;
+import arc.scene.ui.ImageButton;
+import arc.scene.ui.Tooltip;
 import arc.scene.ui.TextButton.TextButtonStyle;
 import arc.scene.ui.layout.*;
 import arc.struct.ArrayMap;
@@ -80,8 +82,8 @@ public class CreateRoomDialog extends BaseDialog {
         // Description
         hosts.table(table -> {
           table.labelWrap("@claj.manage.tip").left().growX();
-          table.button(Icon.settings, () -> ClajUi.settings.show()).right().padLeft(10).growY()
-               .tooltip("@claj.settings.title");
+          Vars.ui.addDescTooltip(table.button(Icon.settings, () -> ClajUi.settings.show()).right().padLeft(10).growY()
+                                      .get(), "@claj.settings.title");
         }).padBottom(24).growX().row();
 
         // Custom servers
@@ -200,12 +202,19 @@ public class CreateRoomDialog extends BaseDialog {
     dest.table(head -> {
       head.add(label, Pal.accent).pad(5).growX().left().bottom();
       if (add != null)
-        head.button(Icon.add, Styles.emptyi, add).size(40f).padRight(3).right().tooltip("@server.add");
+        Vars.ui.addDescTooltip(head.button(Icon.add, Styles.emptyi, add).size(40f).padRight(3).right()
+                                   .get(), "@server.add");
       if (refresh != null)
-        head.button(Icon.refresh, Styles.emptyi, refresh).size(40f).padRight(3).right().tooltip("@servers.refresh");
-      head.button(Icon.downOpen, Styles.emptyi, () -> coll.toggle()).size(40f).padRight(5).right()
-          .update(i -> i.getStyle().imageUp = coll.isCollapsed() ? Icon.downOpen : Icon.upOpen)
-          .tooltip(t -> t.label(() -> "@servers." + (coll.isCollapsed() ? "show" : "hide")));
+        Vars.ui.addDescTooltip(head.button(Icon.refresh, Styles.emptyi, refresh).size(40f).padRight(3).right()
+                                   .get(),"@servers.refresh");
+      ImageButton button =
+        head.button(Icon.downOpen, Styles.emptyi, () -> coll.toggle()).size(40f).padRight(5).right()
+            .update(i -> i.getStyle().imageUp = coll.isCollapsed() ? Icon.downOpen : Icon.upOpen).get();
+      Tooltip tip = new Tooltip(t ->
+        t.background(Styles.black8).margin(4f)
+         .label(() -> "@claj.browser.rooms." + (coll.isCollapsed() ? "show" : "hide")).color(Color.lightGray));
+      tip.allowMobile = true;
+      button.addListener(tip);
     }).growX().row();
     dest.image().pad(5).height(3).color(Pal.accent).growX().row();
     dest.add(coll).padBottom(10).growX().row();
@@ -234,19 +243,21 @@ public class CreateRoomDialog extends BaseDialog {
           inner.add().expandX();
 
           if (edit != null) {
-            Cell<?> editb =
-              inner.button(Vars.mobile ? Icon.pencil : Icon.pencilSmall, Styles.emptyi, () -> edit.get(server))
-                   .right().tooltip("@server.edit");
-            if (!Vars.mobile) editb.pad(4f);
-            else editb.size(30f).pad(2, 5, 2, 5);
+            Cell<ImageButton> button =
+              inner.button(Vars.mobile ? Icon.pencil : Icon.pencilSmall, Styles.emptyi, () -> edit.get(server)).right();
+            Vars.ui.addDescTooltip(button.get(), "@server.edit");
+            if (!Vars.mobile) button.pad(5f).padBottom(0);
+            else button.size(30f).pad(2).padBottom(7);
+            button.get().getImage().scaleBy(Vars.mobile ? -0.1f : 0.2f);
           }
 
           if (delete != null) {
-            Cell<?> deleteb =
-              inner.button(Vars.mobile ? Icon.trash : Icon.trashSmall, Styles.emptyi, () -> delete.get(server))
-                   .right().tooltip("@server.del");
-            if (!Vars.mobile) deleteb.pad(2f);
-            else deleteb.size(30f).pad(2, 5, 2, 5);
+            Cell<ImageButton> button =
+              inner.button(Vars.mobile ? Icon.trash : Icon.trashSmall, Styles.emptyi, () -> delete.get(server)).right();
+            Vars.ui.addDescTooltip(button.get(), "@server.del");
+            if (!Vars.mobile) button.pad(5f).padBottom(0);
+            else button.size(30f).pad(2, 5, 7, 2);
+            button.get().getImage().scaleBy(Vars.mobile ? -0.1f : 0.2f);
           }
 
         })).growX().row();
