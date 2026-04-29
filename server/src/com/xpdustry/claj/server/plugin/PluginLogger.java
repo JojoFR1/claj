@@ -42,10 +42,13 @@ public class PluginLogger {
 
   /** If {@code true}, plugin and class topics will not be displayed. */
   public boolean noTopic = false;
-  public String plugin, topic;
+  public final String plugin, topic;
+  protected final String computedTag;
 
   public PluginLogger(boolean noTopic) {
     this.noTopic = noTopic;
+    plugin = topic = null;
+    computedTag = "";
   }
 
   public PluginLogger() { this((String)null, (String)null); }
@@ -62,20 +65,18 @@ public class PluginLogger {
   public PluginLogger(Plugin plugin, String topic) { this(ClajVars.plugins.getMeta(plugin).displayName, topic); }
   public PluginLogger(String plugin, String topic) {
     this.plugin = plugin;
-    if (topic != null && !(topic = topic.trim()).isEmpty())
-      this.topic = topic;
+    this.topic = topic != null && !(topic = topic.trim()).isEmpty() ? topic : null;
+    
+    String tag = "";
+    if (plugin != null) tag += Strings.format(pluginTopicFormat, plugin) + ' ';
+    if (topic != null) tag += Strings.format(classTopicFormat, topic) + ' ';
+    computedTag = Log.format(tag + "&fr", empty);
   }
 
   protected void logImpl(LogLevel level, String text, Throwable th, Object... args) {
     if (Log.level.ordinal() > level.ordinal()) return;
 
-    String tag = "";
-    if (!noTopic) {
-      if (plugin != null) tag += Strings.format(pluginTopicFormat, plugin) + ' ';
-      if (topic != null) tag += Strings.format(classTopicFormat, topic) + ' ';
-      tag = Log.format(tag, empty);
-    }
-
+    String tag = noTopic ? "" : computedTag;
     if (text != null) {
       text = Log.format(text, args);
       if (th != null) text += ": " + Strings.getStackTrace(th);

@@ -84,22 +84,22 @@ public class JsonSettings implements Autosaver.Saveable {
                                             (extension.isEmpty() ? "" : '.' + extension));
     } else this.backupFile = backupFile;
     this.plainJson = plainJson;
-    reader = plainJson ? new JsonReader() : new UBJsonReader();
+    this.reader = plainJson ? new JsonReader() : new UBJsonReader();
     this.backuped = backuped;
     this.compressed = compressed;
-    setJson(new Json());
-    setAutosaved(autosave);
-  }
-
-  public void setJson(Json json) {
-    this.json = json;
+    this.json = new Json();
     if (plainJson) this.json.setOutputType(JsonWriter.OutputType.json);
+    setAutosaved(autosave);
   }
 
   public Json getJson() {
     return json;
   }
 
+  public <T> void addSerializer(Class<T> type, Json.Serializer<T> serializer) {
+    json.setSerializer(type, serializer);
+  }
+  
   public boolean isPlainJson() {
     return plainJson;
   }

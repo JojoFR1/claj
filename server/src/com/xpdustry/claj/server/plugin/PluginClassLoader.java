@@ -1,4 +1,3 @@
-
 package com.xpdustry.claj.server.plugin;
 
 import arc.struct.Seq;

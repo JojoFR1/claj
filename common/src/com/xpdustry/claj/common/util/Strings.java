@@ -204,23 +204,35 @@ public class Strings extends arc.util.Strings {
 
     return result;
   }
-
+  
   public static boolean isVersionAtLeast(String currentVersion, String newVersion) {
-    return isVersionAtLeast(currentVersion, newVersion, 0);
+    return compareVersion(currentVersion, newVersion, 0) < 0;
+  }
+
+  public static boolean isVersionAtLeast(String currentVersion, String newVersion, int maxDepth) {
+    return compareVersion(currentVersion, newVersion, maxDepth) < 0;
+  }
+  
+  public static int compareVersion(String currentVersion, String newVersion) {
+    return compareVersion(currentVersion, newVersion, 0);
   }
 
   /**
-   * Compare if the {@code newVersion} is greater than the {@code currentVersion}, e.g. "v146" > "124.1". <br>
-   * {@code maxDepth} limits the number of comparisons of version segments, allowing sub-versions to be ignored.
+   * Compare if {@code newVersion} is greater or less than {@code currentVersion}, e.g. "v146" > "124.1". <br>
+   * {@code maxDepth} defines the number of comparisons of version segments, allowing sub-versions to be ignored.
    * (default is 0)
    *
    * @apiNote can handle dots and dashes in the version and makes very fast comparison. <br>
    *          Also ignores non-int parts. (e.g. {@code "v1.2-rc36"}, the {@code "rc36"} part will be ignored)
    */
-  public static boolean isVersionAtLeast(String currentVersion, String newVersion, int maxDepth) {
+  public static int compareVersion(String currentVersion, String newVersion, int maxDepth) {
     if (maxDepth < 1) maxDepth = Integer.MAX_VALUE;
-    if (currentVersion == null || newVersion == null ||
-        currentVersion.isEmpty() || newVersion.isEmpty()) return false;
+    
+    boolean currentEmpty = currentVersion == null || currentVersion.isEmpty();
+    boolean newEmpty = newVersion == null || newVersion.isEmpty();
+    if (currentEmpty && newEmpty) return 0;
+    else if (currentEmpty && !newEmpty) return -1;
+    else if (!currentEmpty && newEmpty) return 1;
 
     int last1 = currentVersion.charAt(0) == 'v' ? 1 : 0, last2 = newVersion.charAt(0) == 'v' ? 1 : 0,
         len1 = currentVersion.length(),
@@ -246,9 +258,9 @@ public class Strings extends arc.util.Strings {
       last1 = dot1+1;
       last2 = dot2+1;
 
-      if (p1 != p2) return p2 > p1;
+      if (p1 != p2) return p1 < p2 ? -1 : 1;
     }
-    if (maxDepth <= 0) return p2 > p1;
+    if (maxDepth <= 0) return p1 < p2 ? -1 : 1;
 
     // Continue iteration on newVersion to see if it's just leading zeros.
     while (dot2 != -1 && last2 < len2) {
@@ -261,10 +273,10 @@ public class Strings extends arc.util.Strings {
       p2 = parseInt(newVersion, 10, 0, last2, dot2);
       last2 = dot2+1;
 
-      if (p2 > 0) return true;
+      if (p2 > 0) return -1;
     }
 
-    return false;
+    return 0;
   }
 
   public static String kebabize(String s) {
@@ -600,5 +612,44 @@ public class Strings extends arc.util.Strings {
     int z = (63 - Long.numberOfLeadingZeros(value)) / 10;
     return String.format((negated ? "-%.1f %s" : "%.1f %s") + unit,
                          Math.scalb((double)value, z * -10), " KMGTPE".charAt(z));
+  }
+  
+  private static final Object[][] TIME_PERIODS = {
+    {"year",        "years",       "y",  1000L*60*60*24*365},
+    {"month",       "months",      "mo", 1000L*60*60*24*30},
+    //{"week",        "weeks",       "w",  1000L*60*60*24*7},
+    {"day",         "days",        "d",  1000L*60*60*24},
+    {"hour",        "hours",       "h",  1000L*60*60},
+    {"minute",      "minutes",     "m",  1000L*60},
+    {"second",      "seconds",     "s",  1000L},
+    //{"millisecond", "millisecond", "ms", 1L},
+  };
+
+  /**
+   * Convert {@code millis} duration to localized human readable format (e.g. 123456 -> 2 minutes and 3 seconds),
+   * using the logger system.
+   * 
+   * @param millis milliseconds to convert to duration
+   * @param narrow use short units or not. E.g. "5 months" if {@code false}, "5mo" if {@code true}
+   */
+  public static String formatDuration(long millis, boolean narrow) {
+    boolean negative = millis < 0;
+    millis = Math.abs(millis);
+    StringBuilder builder = new StringBuilder();
+    boolean space = false;
+
+    for (int i=0; i<TIME_PERIODS.length; i++) {
+      long period = (long)TIME_PERIODS[i][3];
+      if (millis >= period) {
+        long count = millis / period;
+        millis %= period;
+        if (space) builder.append(' ');
+        if (negative) builder.append('-');
+        builder.append(count).append(TIME_PERIODS[i][narrow ? 2 : count > 1 ? 1 : 0]);
+        space = true;
+      }
+    }
+
+    return builder.toString();
   }
 }

@@ -1,7 +1,7 @@
 /**
  * This file is part of CLaJ. The system that allows you to play with your friends,
  * just by creating a room, copying the link and sending it to your friends.
- * Copyright (c) 2025  Xpdustry
+ * Copyright (c) 2025-2026  Xpdustry
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -464,7 +464,8 @@ public class ClajRelay extends Server implements ApplicationListener {
       clearAndStop();
     }
     try { super.dispose(); }
-    catch (Exception ignored) {}
+    catch (Exception _) {}
+    Log.info("Server disposed.");
   }
 
   public void host(int port) throws RuntimeException {
@@ -483,7 +484,7 @@ public class ClajRelay extends Server implements ApplicationListener {
           return;
         }
       }
-      info("Server closed.");
+      Log.info("Server stopped.");
     });
   }
 
@@ -519,7 +520,7 @@ public class ClajRelay extends Server implements ApplicationListener {
     Events.fire(new ServerStoppingEvent(true));
     if (ClajConfig.warnClosing.get() && !rooms.isEmpty()) {
       float wait = ClajConfig.closeWait.get();
-      info("Notifying server closure to rooms... The server will exit in @s.", wait);
+      Log.info("Notifying server closure to rooms... The server will exit in @s.", wait);
       rooms.eachValue(r -> r.message(MessageType.serverClosing));
       Timer.schedule(notified, wait);
     } else notified.run();
@@ -558,7 +559,6 @@ public class ClajRelay extends Server implements ApplicationListener {
   public ClajRoom createRoom(ClajConnection host, ClajType type) {
     ClajRoom room = newRoom(host, type);
     rooms.put(room.id, room);
-    host.room = room;
     if (type != null) types.get(type, LongMap::new).put(room.id, room);
     room.create();
     return room;
@@ -597,7 +597,6 @@ public class ClajRelay extends Server implements ApplicationListener {
   }
 
   public void addClient(ClajRoom room, ClajConnection con) {
-    con.room = room;
     room.connected(con);
   }
 
@@ -605,12 +604,12 @@ public class ClajRelay extends Server implements ApplicationListener {
   public boolean removeClient(ClajConnection con, DcReason reason) {
     if (con == null) return false;
     removeQueue(con);
-    if (con.room != null) {
-      boolean wasHost = con.isRoomHost();
-      con.room.disconnected(con, reason);
+    ClajRoom room = con.room;
+    if (room != null) {
+      room.disconnected(con, reason);
       // Close the room if it was the host
-      if (wasHost) {
-        closeRoom(con.room);
+      if (room.isHost(con)) {
+        closeRoom(room);
         return true;
       }
     }

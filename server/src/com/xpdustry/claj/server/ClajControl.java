@@ -1,7 +1,7 @@
 /**
  * This file is part of CLaJ. The system that allows you to play with your friends,
  * just by creating a room, copying the link and sending it to your friends.
- * Copyright (c) 2025  Xpdustry
+ * Copyright (c) 2025-2026  Xpdustry
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,7 +27,6 @@ import arc.Events;
 import arc.math.Mathf;
 import arc.util.CommandHandler;
 import arc.util.Log;
-import arc.util.OS;
 import arc.util.Threads;
 
 import com.xpdustry.claj.common.status.ClajType;
@@ -114,38 +113,25 @@ public class ClajControl extends CommandHandler implements ApplicationListener {
                  "&fr - &lw" + c.description));
     });
 
-    //TODO: also print version, cpu usage, uptime, etc
     register("status", "Display status of server and rooms.", args -> {
-      Log.info("Version: CLaJ @ (@), Java @.", ClajVars.version, ClajVars.version.majorVersion, OS.javaVersion);
-      Log.info("@ FPS, @ used.", Core.graphics.getFramesPerSecond(), Strings.formatBytes(Core.app.getJavaHeap()));
-      java.lang.management.ManagementFactory.getRuntimeMXBean().getName();
-
-      Log.info("@ rooms, @ client" + (ClajVars.relay.connections.size < 2 ? "" : "s") +
-               ", @ connection" + (ClajVars.relay.getConnections().length < 2 ? "." : "s."),
-               ClajVars.relay.rooms.size, ClajVars.relay.connections.size, ClajVars.relay.getConnections().length);
-
-      NetworkSpeed net = ClajVars.relay.networkSpeed;
-      if (net != null) {
-        Log.info("Speed: @/s up, @/s down. Total: @ up, @ down.",
-                 Strings.formatBytes((long)net.uploadSpeed()), Strings.formatBytes((long)net.downloadSpeed()),
-                 Strings.formatBytes(net.totalUpload()), Strings.formatBytes(net.totalDownload()));
-      } else Log.info("Network speed calculator is disabled.");
-
-      if (ClajVars.relay.rooms.isEmpty()) {
-        Log.info("No created rooms.");
+      ClajStateSummary state = ClajStateSummary.now();
+      Log.info("CLaJ Node Status:");
+      Log.info("&lk|&fr Version: CLaJ @ (@), Java @", state.version, state.majorVersion, state.javaVersion);
+      Log.info("&lk|&fr Uptime: @", Strings.formatDuration(state.uptime, true));
+      Log.info("&lk|&fr TPS: @", state.tps);
+      Log.info("&lk|&fr RAM: @ / @", Strings.formatBytes(state.usedHeap), Strings.formatBytes(state.availableHeap));
+      Log.info("&lk|&fr CPU: @ (@)", String.format("%.2f%%", state.javaCpuLoad), 
+               String.format("%.2f%%", state.systemCpuLoad));
+      Log.info("&lk|&fr Load: @ rooms, @ clients, @ connections.", state.rooms, state.clients, state.connections);
+      if (ClajVars.relay.networkSpeed == null) {
+        Log.info("&lk|&fr Network speed calculator is disabled.");
         return;
       }
-      Log.info("Rooms:");
-      ClajVars.relay.rooms.eachValue(r -> {
-        NetworkSpeed n = r.transferredPackets;
-        Log.info("&lk|&fr @: @ client" + (r.clients.isEmpty() ? "" : "s") +
-                 ". @ p/s in, @ p/s out (@ in, @ out).",
-                 r.sid, r.clients.size + 1, Mathf.ceil(n.uploadSpeed()), Mathf.ceil(n.downloadSpeed()),
-                 n.totalUpload(), n.totalDownload());
-      });
+      Log.info("&lk|&fr Network: @/s up, @/s down (@ up, @ down)", Strings.formatBytes(state.uploadSpeed), 
+               Strings.formatBytes(state.downloadSpeed), Strings.formatBytes(state.totalUpload), 
+               Strings.formatBytes(state.totalDownload));
     });
 
-    // Why i added this command? it's useless for this kind of project
     register("gc", "Trigger a garbage collection.", args -> {
       long pre = Core.app.getJavaHeap();
       System.gc();
@@ -168,8 +154,8 @@ public class ClajControl extends CommandHandler implements ApplicationListener {
          if (!ClajVars.plugins.list().isEmpty()) {
           Log.info("Plugins: [total: @]", ClajVars.plugins.list().size);
           ClajVars.plugins.list().each(p ->
-            Log.info("&lk|&fr @ &fi@" + (p.enabled() ? "" : " &lr(" + p.state + ")"), p.meta.displayName,
-                     p.meta.version));
+            Log.info("&lk|&fr @ &fi@&fr (@)" + (p.enabled() ? "" : " &lr(" + p.state + ")"), p.meta.displayName,
+                     p.meta.version, p.name));
 
         } else Log.info("No plugins found.");
         Log.info("Plugin directory: &fi@", ClajVars.pluginsDirectory.file().getAbsoluteFile().toString());
@@ -184,27 +170,40 @@ public class ClajControl extends CommandHandler implements ApplicationListener {
         Log.info("Author: @", plugin.meta.author);
         Log.info("Path: @", plugin.file.path());
         Log.info("Description: @", plugin.meta.description);
+        Log.info("State: @", Strings.camelToKebab(plugin.state.name()).replace('-', ' '));
       } else Log.info("No mod with name '@' found.", args[0]);
     });
 
-    register("rooms", "Displays created rooms.", args -> {
+    //TODO: argument that display room info and state
+    register("rooms", "[status]", "Displays created rooms.", args -> {
       if (ClajVars.relay.rooms.isEmpty()) {
         Log.info("No created rooms.");
-        return;
+        
+      }else if (args.length == 0) {
+        Log.info("Rooms: [total: @]", ClajVars.relay.rooms.size);
+        ClajVars.relay.rooms.eachValue(r -> {
+          Log.info("&lk|&fr Room @: [@ client" + (r.clients.isEmpty() ? "" : "s") + ", type: @]", r.sid,
+                   r.clients.size + 1, r.type);
+          Log.info("&lk| |&fr [H] Connection @&fr - @", r.host.sid, r.host.address);
+          for (ClajConnection c : r.clients.values())
+            Log.info("&lk| |&fr [C] Connection @&fr - @", c.sid, c.address);
+          Log.info("&lk|&fr");
+        });  
+        
+      } else if (args[0].equals("status")) {
+        Log.info("Rooms: [total: @]", ClajVars.relay.rooms.size);
+        ClajVars.relay.rooms.eachValue(r -> {
+          NetworkSpeed n = r.transferredPackets;
+          Log.info("&lk|&fr @: @ client" + (r.clients.isEmpty() ? "" : "s") +
+                   ". @ p/s in, @ p/s out (@ in, @ out).",
+                   r.sid, r.clients.size + 1, Mathf.ceil(n.uploadSpeed()), Mathf.ceil(n.downloadSpeed()),
+                   n.totalUpload(), n.totalDownload());
+        });
+        
+      } else {
+        Log.err("Invalid argument! Must be 'status' or nothing.");
       }
-
-      Log.info("Rooms: [total: @]", ClajVars.relay.rooms.size);
-      ClajVars.relay.rooms.eachValue(r -> {
-        Log.info("&lk|&fr Room @: [@ client" + (r.clients.isEmpty() ? "" : "s") + ", type: @]", r.sid,
-                 r.clients.size + 1, r.type);
-        Log.info("&lk| |&fr [H] Connection @&fr - @", r.host.sid, r.host.address);
-        for (ClajConnection c : r.clients.values())
-          Log.info("&lk| |&fr [C] Connection @&fr - @", c.sid, c.address);
-        Log.info("&lk|&fr");
-      });
     });
-
-    //TODO: command that display room info and state
 
     register("refresh", "<room|list> [id|type] [force]", "Refresh a room state or a room list.", args -> {
       switch (args[0]) {
@@ -335,7 +334,7 @@ public class ClajControl extends CommandHandler implements ApplicationListener {
           break;
 
         default:
-          Log.err("Invalid argument. Must be 'add', 'remove' or 'clear'.");
+          Log.err("Invalid argument. Must be 'add', 'remove', 'clear' or nothing.");
       }
     });
 
@@ -380,7 +379,7 @@ public class ClajControl extends CommandHandler implements ApplicationListener {
           break;
 
         default:
-          Log.err("Invalid argument. Must be 'add', 'remove' or 'clear'.");
+          Log.err("Invalid argument. Must be 'add', 'remove', 'clear' or nothing.");
       }
     });
 

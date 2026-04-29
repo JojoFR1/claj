@@ -1,7 +1,7 @@
 /**
  * This file is part of CLaJ. The system that allows you to play with your friends,
  * just by creating a room, copying the link and sending it to your friends.
- * Copyright (c) 2025  Xpdustry
+ * Copyright (c) 2025-2026  Xpdustry
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -91,8 +91,21 @@ public class ClajRoom implements NetListener {
     this.sid = Strings.longToBase64(id);
     this.host = host;
     this.type = type;
+    setRoom(host);
   }
 
+  protected void setRoom(ClajConnection con) {
+    if (con.room != null) {
+      String msg = isHost(con) ? "the host is owning another room" : "the connection is already in another room";
+      throw new IllegalArgumentException(msg);
+    }
+    con.room = this;
+  }
+  
+  protected void removeRoom(ClajConnection con) {
+    if (con.room == this) con.room = null;
+  }
+  
   /** Alerts the host that a new client is coming */
   @Override
   public void connected(Connection connection) {
@@ -110,6 +123,7 @@ public class ClajRoom implements NetListener {
     host.send(p); // Assumes the host is still connected
 
     clients.put(connection.id, connection);
+    setRoom(connection);
     Events.fire(new ConnectionJoinedEvent(connection, this));
   }
 
@@ -137,7 +151,7 @@ public class ClajRoom implements NetListener {
     }
 
     clients.remove(connection.id);
-    connection.removeRoom(this);
+    removeRoom(connection);
     Events.fire(new ConnectionLeftEvent(connection, this));
   }
 
@@ -156,7 +170,7 @@ public class ClajRoom implements NetListener {
       close();
     } else {
       clients.remove(connection.id);
-      connection.removeRoom(this);
+      removeRoom(connection);
       Events.fire(new ConnectionLeftEvent(connection, this));
     }
   }
@@ -299,9 +313,9 @@ public class ClajRoom implements NetListener {
     host.close();
     for (ClajConnection c : clients.values()) {
       c.close();
-      c.removeRoom(this);
+      removeRoom(c);
     }
-    host.removeRoom(this);
+    removeRoom(host);
     clients.clear();
 
     Events.fire(new RoomClosedEvent(this));

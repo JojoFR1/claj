@@ -1,7 +1,7 @@
 /**
  * This file is part of CLaJ. The system that allows you to play with your friends,
  * just by creating a room, copying the link and sending it to your friends.
- * Copyright (c) 2025-2026  Xpdustry
+ * Copyright (c) 2026  Xpdustry
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -60,8 +60,8 @@ public class MindustryClajProvider implements ClajProvider {
     mindustryServer = Reflect.get(mindustryProvider, "server");
     mindustryServerDispatcher = Reflect.get(mindustryServer, "dispatchListener");
     mindustrySerializer = new PacketSerializer();
-    clajVersion = new ClajVersion(Main.getMeta().version);
-    implType = new ClajType("Mindustry");
+    clajVersion = ClajVersion.of(Main.getMeta().version);
+    implType = ClajType.of("Mindustry");
   }
 
   @Override

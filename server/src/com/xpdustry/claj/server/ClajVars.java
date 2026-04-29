@@ -1,7 +1,7 @@
 /**
  * This file is part of CLaJ. The system that allows you to play with your friends,
  * just by creating a room, copying the link and sending it to your friends.
- * Copyright (c) 2025  Xpdustry
+ * Copyright (c) 2025-2026  Xpdustry
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -51,9 +51,12 @@ public class ClajVars {
   public static NetworkSpeed networkSpeed = new NetworkSpeed(8);
 
   public static final String[] tags = {"&lc&fb[D]&fr", "&lb&fb[I]&fr", "&ly&fb[W]&fr", "&lr&fb[E]", ""};
-  public static DateTimeFormatter dateformat = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss");
+  public static DateTimeFormatter logDateformat = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss");
   public static String logFormat = "&lk&fb[@]&fr @ @&fr";
   public static String textFormat = "&fb&lb@&fr";
+
+  /** Skip loading of plugins. Or new plugins, if sets while loading them. */
+  public static boolean skipPluginLoading;
 
 
   public static void initLogger() {
@@ -71,8 +74,8 @@ public class ClajVars {
     Log.LogHandler log = (level, text) -> {
       //err has red text instead of reset.
       if(level == Log.LogLevel.err) text = text.replace(ColorCodes.reset, ColorCodes.lightRed + ColorCodes.bold);
-
-      text = Log.format(Strings.format(logFormat, dateformat.format(LocalDateTime.now()), tags[level.ordinal()], text));
+      text = Log.format(Strings.format(logFormat, logDateformat.format(LocalDateTime.now()), 
+                                       tags[level.ordinal()], text));
       System.out.println(text);
     };
 

@@ -1,7 +1,7 @@
 /**
  * This file is part of CLaJ. The system that allows you to play with your friends,
  * just by creating a room, copying the link and sending it to your friends.
- * Copyright (c) 2025  Xpdustry
+ * Copyright (c) 2025-2026  Xpdustry
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -44,12 +44,30 @@ public class Main implements ApplicationListener {
 
     app = new HeadlessApplication(new Main(), t -> {
       //TODO: crash handler
-      if (ClajVars.relay != null) ClajVars.relay.dispose();
-      ClajConfig.save();
+      Throwable disposeError = null, saveError = null;
+      // Try to dispose properly
+      try { app.dispose(); }
+      catch (Exception e) { disposeError = e; }
+      try { ClajConfig.save(); }
+      catch (Exception e) { saveError = e; }
       if (isLoading) Log.err("Failed to load server", t);
       else {
         Log.err(t);
         Log.err("Server closed with error(s).");
+      }
+      if (disposeError != null || saveError != null) {
+        Log.err("############### ALERT! ###############");
+        Log.err("The CLaJ server has crashed and was unable to dispose properly.");
+        Log.err("There is a possible data corruption.");
+        if (disposeError != null) {
+          Log.err("");
+          Log.err("Failed to dispose components", disposeError);
+        }
+        if (saveError != null) {
+          Log.err("");
+          Log.err("Failed to save settings", saveError);
+        }
+        Log.err("############### ALERT! ###############");
       }
       System.exit(1);
     });
@@ -60,8 +78,8 @@ public class Main implements ApplicationListener {
     ClajConfig.load();
     Log.level = ClajConfig.debug.get() ? Log.LogLevel.debug : Log.LogLevel.info; // set log level
     ClajPackets.init();
-
     Autosaver.init(app);
+    
     app.addListener(ClajVars.control = new ClajControl());
     app.addListener(ClajVars.plugins = new Plugins(ClajVars.pluginsDirectory, ClajVars.control));
     app.addListener(ClajVars.relay = new ClajRelay(ClajVars.networkSpeed));
@@ -103,7 +121,7 @@ public class Main implements ApplicationListener {
     }
 
     try {
-      ClajVars.version = new ClajVersion(version == null ? versionOverride : version);
+      ClajVars.version = ClajVersion.of(version == null ? versionOverride : version);
     } catch (Exception e) {
       Log.err("Invalid CLaJ version", e);
       return false;

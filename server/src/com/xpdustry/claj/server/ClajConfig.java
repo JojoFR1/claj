@@ -1,7 +1,7 @@
 /**
  * This file is part of CLaJ. The system that allows you to play with your friends,
  * just by creating a room, copying the link and sending it to your friends.
- * Copyright (c) 2025  Xpdustry
+ * Copyright (c) 2025-2026  Xpdustry
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -26,6 +26,8 @@ import arc.struct.ObjectSet;
 import arc.struct.Seq;
 import arc.util.Log;
 import arc.util.Structs;
+import arc.util.serialization.Json;
+import arc.util.serialization.JsonValue;
 import arc.util.serialization.SerializationException;
 
 import com.xpdustry.claj.common.status.ClajType;
@@ -38,9 +40,15 @@ public class ClajConfig {
   public static final Seq<Field<?>> all = new Seq<>();
   public static String fileName = "config.json";
   protected static JsonSettings settings;
-
+  
+  @SuppressWarnings("rawtypes")
   public static void init() {
     settings = new JsonSettings(new Fi(fileName, Files.FileType.local), true, true, true, false);
+    
+    settings.addSerializer(ClajType.class, new Json.Serializer<ClajType>() {
+      public void write(Json json, ClajType object, Class knownType) { json.writeValue(object.type());}
+      public ClajType read(Json json, JsonValue jsonData, Class type) { return ClajType.of(jsonData.asString()); }
+    });
   }
 
   public static void load() {
@@ -193,15 +201,15 @@ public class ClajConfig {
       """.trim(),
       """
       Limit of room join requests per minute. The server will act as the room is not found.
-      This can prevent room searching. Set to &fb0&fw to disable.
+      This can prevent room searching. Set to &lb0&lw to disable.
       """.trim(),
       """
       Limit of room info requests per minute per ip address.
-      The server will act as the room is not found. Set to &fb0&fw to disable.
+      The server will act as the room is not found. Set to &lb0&lw to disable.
       """.trim(),
       """
       Limit of room list requests per minute per ip address.
-      The server will return an empty list. Set to &fb0&fw to disable.
+      The server will return an empty list. Set to &lb0&lw to disable.
       """.trim(),
       """
       Whether to accept or not clients who attempt to join a room without specifying their CLaJ implementation.
