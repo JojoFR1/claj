@@ -144,7 +144,7 @@ public class BrowserDialog extends BaseDialog {
     if (menu == null) Log.err("Unable to place claj buttons, main container not found!");
     return menu;
   }
-  
+
   public void rebuild() {
     setup();
     if (refreshingList) return;
@@ -345,7 +345,7 @@ public class BrowserDialog extends BaseDialog {
       })).grow().row();
     }, style, () -> preJoin(room)).width(w).padBottom(7f).padRight(4f).top().left().growY();
   }
-  
+
   public void preJoin(ClajRoom<Host> room) {
     if (room.state != null) Events.fire(new EventType.ClientPreConnectEvent(room.state));
     if (!Core.settings.getBool("server-disclaimer", false)) {
@@ -355,25 +355,25 @@ public class BrowserDialog extends BaseDialog {
       }, () -> Core.settings.put("server-disclaimer", false));
     } else safeJoin(room);
   }
-  
+
   public void safeJoin(ClajRoom<Host> room) {
     if (room.state != null) {
       int version = room.state.version;
       if(version != Version.build && Version.build != -1 && version != -1){
-          Vars.ui.showInfo("[scarlet]" + 
-                           (version > Version.build ? KickReason.clientOutdated : KickReason.serverOutdated) + 
+          Vars.ui.showInfo("[scarlet]" +
+                           (version > Version.build ? KickReason.clientOutdated : KickReason.serverOutdated) +
                            "\n[]" + Core.bundle.format("server.versions", Version.build, version));
           return;
-      }      
+      }
     }
     //TODO: warn if no state received?
     join(room);
   }
-  
+
   public void join(ClajRoom<Host> room) {
     ClajUi.join.joinRoom(room.link, room.isProtected);
   }
-  
+
   public void section(String name, String host, Table src, Table dest, Runnable refresh) {
     Collapser coll = new Collapser(src, Core.settings.getBool("claj-collapsed-" + name, false));
     dest.table(head -> {
@@ -387,7 +387,7 @@ public class BrowserDialog extends BaseDialog {
         head.add(name, Pal.accent).pad(5).padLeft(10).left().bottom();
         head.add('(' + host + ')', Pal.lightishGray).pad(5).growX().left().bottom();
       }
-      
+
       boolean[] firstRefresh = {true};
       if (refresh != null){
         Vars.ui.addDescTooltip(head.button(Icon.refresh, Styles.emptyi, () -> {

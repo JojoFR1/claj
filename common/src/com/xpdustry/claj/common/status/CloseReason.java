@@ -37,9 +37,9 @@ public enum CloseReason {
   serverFull,
   /** The CLaJ server doesn't allows the provided implementation. */
   blacklisted,
-  /** 
+  /**
    * The room as been closed by the server because it considered the room as AFK. <br>
-   * Here, AFK means that no CLaJ clients has connected for a long time.
+   * Here, AFK means that no CLaJ clients has joined the room for a long time.
    * Even if in reality, there are client connected but with another way than CLaJ.
    */
   afk;

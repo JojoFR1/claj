@@ -26,15 +26,13 @@ import java.nio.channels.ClosedSelectorException;
 import arc.func.Cons;
 import arc.net.ArcNetException;
 import arc.net.Client;
-import arc.net.Connection;
 import arc.net.DcReason;
 import arc.net.NetListener;
 import arc.net.NetSerializer;
 import arc.struct.IntMap;
 import arc.struct.Queue;
-import arc.util.Log;
-import arc.util.Reflect;
 
+import com.xpdustry.claj.common.ClajPackets.Disconnect;
 import com.xpdustry.claj.common.net.ClientReceiver;
 import com.xpdustry.claj.common.util.Structs;
 
@@ -61,9 +59,10 @@ public abstract class ProxyClient extends Client {
   /** For faster iteration. */
   protected VirtualConnection[] connections = {};
   protected NetListener conListener;
-  protected volatile boolean shutdown = true, starting, ignoreExceptions, connecting;
+  protected volatile boolean shutdown = true, starting, connecting;
   protected ClientReceiver receiver;
   protected long lastPing;
+  protected Cons<Throwable> errorHandler;
 
   /** Packet queue to avoid a buffer overflow. */
   protected final Queue<Object> packetQueue = new Queue<>();
@@ -75,6 +74,11 @@ public abstract class ProxyClient extends Client {
     super(writeBufferSize, objectBufferSize, serialization);
     receiver = new ClientReceiver(this, taskPoster);
     writeBufferThreshold = (int)(writeBufferSize * 0.8f);
+
+    receiver.handle(Disconnect.class, _ -> {
+      Throwable error = getLastProtocolError();
+      if (error != null) errorHandler.get(error);
+    });
   }
 
   /**
@@ -97,49 +101,31 @@ public abstract class ProxyClient extends Client {
     finally { connecting = false; }
   }
 
-  /**
-   * Ignore exceptions when possible, and maintain idle state of virtual connections. <br>
-   * This also tries to ignore errors, to avoid stopping the proxy every time a virtual connection is doing a mess.
-   */
+  @Override
+  public void update(int timeout) throws IOException {
+    updatePing();
+    super.update(timeout);
+    updateIdle();
+    flushPacketQueue();
+  }
+
   @Override
   public void run() {
     shutdown = starting = false;
-    try {
-      while(!shutdown) {
-        try {
-          updatePing();
-          update(250);
-          updateIdle();
-          flushPacketQueue();
-        } catch (ClosedSelectorException _) {
-          close();
-          break;
-        } catch (IOException _) {
-          close();
-        } catch (Exception e) {
-          if (!ignoreExceptions) {
-            // Reflection is needed because the field is package-protected
-            if (e instanceof ArcNetException net)
-              Reflect.set(Connection.class, this, "lastProtocolError", net);
-            close();
-            throw e;
-          }
-          Log.err("Ignored Exception", e);
-          if (!(e instanceof ArcNetException)) break;
-        }
-      }
-    } finally { shutdown = true; }
+    try { super.run(); }
+    catch (ClosedSelectorException _) { close(); }
+    catch (ArcNetException _) {} // Already handled by disconnect event
+    catch (Exception e) {
+      if (errorHandler != null) errorHandler.get(e);
+      else throw e;
+      close();
+    }
+    finally { shutdown = true; }
   }
 
   @Override
   public void start() {
     if (starting) return;
-    if (getUpdateThread() != null) {
-      shutdown = true;
-      try { getUpdateThread().join(5000); }
-      catch (InterruptedException _) {}
-      getUpdateThread().interrupt(); // force stop
-    }
     starting = true;
     super.start();
   }
@@ -244,7 +230,7 @@ public abstract class ProxyClient extends Client {
       if (c.isIdle()) c.notifyIdle0();
     }
   }
-  
+
   public void updatePing() {
     if (!isConnected()) return;
     long now = System.currentTimeMillis();

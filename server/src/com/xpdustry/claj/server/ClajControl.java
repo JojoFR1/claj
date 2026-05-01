@@ -119,16 +119,16 @@ public class ClajControl extends CommandHandler implements ApplicationListener {
       Log.info("&lk|&fr Version: CLaJ @ (@), Java @", state.version, state.majorVersion, state.javaVersion);
       Log.info("&lk|&fr Uptime: @", Strings.formatDuration(state.uptime, true));
       Log.info("&lk|&fr TPS: @", state.tps);
-      Log.info("&lk|&fr RAM: @ / @", Strings.formatBytes(state.usedHeap), Strings.formatBytes(state.availableHeap));
-      Log.info("&lk|&fr CPU: @ (@)", String.format("%.2f%%", state.javaCpuLoad), 
+      Log.info("&lk|&fr RAM: @ / @", Strings.formatBytes(state.usedHeap), Strings.formatBytes(state.allocatedHeap));
+      Log.info("&lk|&fr CPU: @ (@)", String.format("%.2f%%", state.javaCpuLoad),
                String.format("%.2f%%", state.systemCpuLoad));
       Log.info("&lk|&fr Load: @ rooms, @ clients, @ connections.", state.rooms, state.clients, state.connections);
       if (ClajVars.relay.networkSpeed == null) {
         Log.info("&lk|&fr Network speed calculator is disabled.");
         return;
       }
-      Log.info("&lk|&fr Network: @/s up, @/s down (@ up, @ down)", Strings.formatBytes(state.uploadSpeed), 
-               Strings.formatBytes(state.downloadSpeed), Strings.formatBytes(state.totalUpload), 
+      Log.info("&lk|&fr Network: @/s up, @/s down (@ up, @ down)", Strings.formatBytes(state.uploadSpeed),
+               Strings.formatBytes(state.downloadSpeed), Strings.formatBytes(state.totalUpload),
                Strings.formatBytes(state.totalDownload));
     });
 
@@ -178,7 +178,7 @@ public class ClajControl extends CommandHandler implements ApplicationListener {
     register("rooms", "[status]", "Displays created rooms.", args -> {
       if (ClajVars.relay.rooms.isEmpty()) {
         Log.info("No created rooms.");
-        
+
       }else if (args.length == 0) {
         Log.info("Rooms: [total: @]", ClajVars.relay.rooms.size);
         ClajVars.relay.rooms.eachValue(r -> {
@@ -188,8 +188,8 @@ public class ClajControl extends CommandHandler implements ApplicationListener {
           for (ClajConnection c : r.clients.values())
             Log.info("&lk| |&fr [C] Connection @&fr - @", c.sid, c.address);
           Log.info("&lk|&fr");
-        });  
-        
+        });
+
       } else if (args[0].equals("status")) {
         Log.info("Rooms: [total: @]", ClajVars.relay.rooms.size);
         ClajVars.relay.rooms.eachValue(r -> {
@@ -199,7 +199,7 @@ public class ClajControl extends CommandHandler implements ApplicationListener {
                    r.sid, r.clients.size + 1, Mathf.ceil(n.uploadSpeed()), Mathf.ceil(n.downloadSpeed()),
                    n.totalUpload(), n.totalDownload());
         });
-        
+
       } else {
         Log.err("Invalid argument! Must be 'status' or nothing.");
       }
@@ -269,7 +269,8 @@ public class ClajControl extends CommandHandler implements ApplicationListener {
     register("config", "[name] [default|value...]", "Configure server settings.", args -> {
       if (args.length == 0) {
         Log.info("Config values: [total: @]", ClajConfig.all.size);
-        ClajConfig.all.each(f -> {
+        // Ignore blacklist and type-blacklist as these are managed with dedicated commands.
+        ClajConfig.all.each(f -> !(f instanceof ClajConfig.SetField), f -> {
           Log.info("&lk|&fr @: @", f.key, "&lc&fi" + f.get());
           for (String line : f.desc.split("\n")) {
             Log.info("&lk| |&lw " + line);
@@ -317,19 +318,19 @@ public class ClajControl extends CommandHandler implements ApplicationListener {
 
       switch (args[0]) {
         case "add":
-          if (ClajConfig.blacklist.getChange().add(args[1]))
+          if (ClajConfig.blacklist.add(args[1]))
             Log.info("IP added to blacklist.");
           else Log.err("IP already blacklisted.");
           break;
 
         case "remove":
-          if (ClajConfig.blacklist.getChange().remove(args[1]))
+          if (ClajConfig.blacklist.remove(args[1]))
             Log.info("IP removed from blacklist.");
           else Log.err("IP not blacklisted.");
           break;
 
         case "clear":
-          ClajConfig.blacklist.getChange().clear();
+          ClajConfig.blacklist.clear();
           Log.info("Blacklist cleared.");
           break;
 
@@ -358,7 +359,7 @@ public class ClajControl extends CommandHandler implements ApplicationListener {
           if (type == null) {
             Log.err("Invalid CLaJ type.");
             return;
-          } else if (ClajConfig.typeBlacklist.getChange().add(type))
+          } else if (ClajConfig.typeBlacklist.add(type))
             Log.info("Type added to blacklist.");
           else Log.err("Type already blacklisted.");
           break;
@@ -368,13 +369,13 @@ public class ClajControl extends CommandHandler implements ApplicationListener {
           if (type == null) {
             Log.err("Invalid CLaJ type.");
             return;
-          } else if (ClajConfig.typeBlacklist.getChange().remove(type))
+          } else if (ClajConfig.typeBlacklist.remove(type))
             Log.info("Type removed from blacklist.");
           else Log.err("Type not blacklisted.");
           break;
 
         case "clear":
-          ClajConfig.typeBlacklist.getChange().clear();
+          ClajConfig.typeBlacklist.clear();
           Log.info("Type nblacklist cleared.");
           break;
 

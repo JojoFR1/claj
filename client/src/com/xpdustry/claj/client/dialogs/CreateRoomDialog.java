@@ -318,10 +318,17 @@ public class CreateRoomDialog extends BaseDialog {
 
   public void showError(CloseReason reason) {
     if (reason == null) return;
-    String key = "@claj.room." + Strings.camelToKebab(reason.name());
+    String key = "claj.room." + Strings.camelToKebab(reason.name());
     switch (reason) {
-      case closed, serverClosed -> Vars.ui.showText("", key);
-      default -> Vars.ui.showErrorMessage(key);
+      case afk:
+        // Show also in chat in case of
+        Claj.get().provider.showTextMessage(Claj.get().proxies.get(), Core.bundle.get(key));
+        //$FALL-THROUGH$
+      case closed, serverClosed:
+        Vars.ui.showText("", '@'+key);
+        break;
+      default:
+        Vars.ui.showErrorMessage('@'+key);
     }
   }
 

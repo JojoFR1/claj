@@ -28,7 +28,7 @@ import com.xpdustry.claj.common.packets.Packet;
 //TODO: clear unfinished streams after one minute.
 public class StreamReceiver {
   public static final int MAX_SIMULTANEOUS_STREAMS = 8;
-  
+
   protected static IntMap<IntMap<StreamBuilder>> sbuilders;
   protected static IntMap<StreamBuilder> cbuilders;
 
@@ -46,7 +46,7 @@ public class StreamReceiver {
       if (cbuilders.size >= MAX_SIMULTANEOUS_STREAMS)
         throw new RuntimeException("Too many simultaneous streams; " + cbuilders.size + ">=" + MAX_SIMULTANEOUS_STREAMS);
       cbuilders.put(begin.id, new StreamBuilder(begin));
-       
+
     } else if (packet instanceof StreamChunk chunk) {
       StreamBuilder builder = cbuilders.get(chunk.id);
       if (builder == null)
@@ -66,16 +66,17 @@ public class StreamReceiver {
    * @return {@code null} until a stream is complete.
    * @throws RuntimeException if a chunk was received before his head.
    */
+  @SuppressWarnings("null")
   public static Packet received(Connection connection, StreamPacket packet) {
     if (sbuilders == null) sbuilders = new IntMap<>(16);
 
     if (packet instanceof StreamHead begin) {
       if (begin.total >= StreamHead.MAX_STREAM_SIZE)
-        throw new RuntimeException("Stream is too big for " + connection + "; " + 
+        throw new RuntimeException("Stream is too big for " + connection + "; " +
                                    begin.total + ">=" + StreamHead.MAX_STREAM_SIZE);
       IntMap<StreamBuilder> builders = sbuilders.get(connection.getID(), () -> new IntMap<>(MAX_SIMULTANEOUS_STREAMS));
       if (builders.size >= MAX_SIMULTANEOUS_STREAMS)
-        throw new RuntimeException("Too many simultaneous streams for " + connection + "; " + 
+        throw new RuntimeException("Too many simultaneous streams for " + connection + "; " +
                                    builders.size + ">=" + MAX_SIMULTANEOUS_STREAMS);
       builders.put(begin.id, new StreamBuilder(begin));
 

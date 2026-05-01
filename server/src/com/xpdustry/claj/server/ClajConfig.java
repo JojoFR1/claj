@@ -22,6 +22,7 @@ package com.xpdustry.claj.server;
 import arc.Files;
 import arc.files.Fi;
 import arc.func.Cons;
+import arc.func.Prov;
 import arc.struct.ObjectSet;
 import arc.struct.Seq;
 import arc.util.Log;
@@ -38,7 +39,7 @@ public class ClajConfig {
   public static final Seq<Field<?>> all = new Seq<>();
   public static String fileName = "config.json";
   protected static JsonSettings settings;
-  
+
   @SuppressWarnings("rawtypes")
   public static void init() {
     settings = new JsonSettings(new Fi(fileName, Files.FileType.local), true, true, true, false);
@@ -50,16 +51,26 @@ public class ClajConfig {
   }
 
   public static void load() {
-    if (settings == null) init();
-    settings.load();
-    all.each(Field::load);
+    try {
+      if (settings == null) init();
+      settings.load();
+      all.each(Field::load);
+    } catch (Exception e) {
+      String fileName = settings == null ? null : settings.file().path();
+      throw new RuntimeException("Failed to load configuration of file '" + fileName + "'", e);
+    }
   }
 
   /** Force save all fields. Do nothing if config was not initialized. */
   public static void save() {
-    if (settings == null) return;
-    all.each(Field::save);
-    settings.save();
+    try {
+      if (settings == null) return;
+      all.each(Field::save);
+      settings.save();
+    } catch (Exception e) {
+      String fileName = settings == null ? null : settings.file().path();
+      throw new RuntimeException("Failed to sve configuration in file '" + fileName + "'", e);
+    }
   }
 
   /** Case is ignored. */
@@ -72,7 +83,7 @@ public class ClajConfig {
   @SuppressWarnings("unchecked")
   public static class Field<T> implements Autosaver.Saveable {
     public final String key, desc;
-    public final T defaultValue;
+    protected final T defaultValue;
     public final Class<T> type;
     protected Cons<T> changed;
     protected T value;
@@ -82,8 +93,8 @@ public class ClajConfig {
     public Field(String key, String desc, T def, Cons<T> changed) { this(key, desc, def, changed, true); }
     public Field(String key, String desc, T def, boolean register) { this(key, desc, def, null, register); }
     public Field(String key, String desc, T def, Cons<T> changed, boolean register) {
-      if (key == null || (key = key.trim()).isEmpty()) throw new IllegalArgumentException("key is null");
-      if (ClajConfig.get(key) != null) throw new IllegalArgumentException("field '" + key + "' already exists");
+      if (key == null || (key = key.trim()).isEmpty()) throw new IllegalArgumentException("'key' is null");
+      if (ClajConfig.get(key) != null) throw new IllegalArgumentException("Field '" + key + "' already exists");
       this.key = key;
       this.desc = desc == null ? "" : desc;
       this.defaultValue = def;
@@ -103,20 +114,36 @@ public class ClajConfig {
       return modified;
     }
 
+    protected T checkValue(T value) {
+      if (value == null || value.getClass() != type) {
+        String valueType = value == null ? null : value.getClass().getName();
+        throw new IllegalArgumentException("Invalid value type for " + name() + "; " + valueType + "!=" + type.getName());
+      }
+      return value;
+    }
+
+    protected T loadValue() {
+      return (T)settings.getOrPut(key, type, getDefault());
+    }
+
     public void load() {
       if (loaded) return;
       if (settings == null || !settings.loaded())
-        throw new IllegalStateException("settings not initialized");
-      value = (T)settings.getOrPut(key, type, defaultValue);
+        throw new IllegalStateException("Settings are not initialized");
+      value = checkValue(loadValue());
       loaded = true;
-      modified = value == defaultValue;
+      modified = false;
+    }
+
+    protected void saveValue() {
+      settings.put(key, value);
     }
 
     public void save() {
+      if (!loaded) return;
       if (settings == null || !settings.loaded())
-        throw new IllegalStateException("settings not initialized");
-      //Because ObjectSet is not saved as a normal list, and it's annoying
-      settings.put(key, value instanceof ObjectSet<?> v ? v.toSeq() : value);
+        throw new IllegalStateException("Settings are not initialized");
+      saveValue();
       modified = false;
     }
 
@@ -125,25 +152,26 @@ public class ClajConfig {
       return value;
     }
 
-    /** Sets the modified flag for a direct save. */
-    public T getChange() {
-      T v = get();
-      modified = true;
-      return v;
+    public void set(T value) {
+      this.value = checkValue(value);
+      notifyChange();
     }
 
-    public void set(T value) {
-      this.value = value;
+    protected void notifyChange() {
       modified = true;
       changed.get(value);
     }
 
+    public T getDefault() {
+      return defaultValue;
+    }
+
     public void setDefault() {
-      set(defaultValue);
+      set(getDefault());
     }
 
     public boolean isDefault() {
-      return Structs.eq(get(), defaultValue);
+      return Structs.eq(get(), getDefault());
     }
 
     /** Adds changed callback. */
@@ -160,34 +188,73 @@ public class ClajConfig {
       return String.valueOf(get());
     }
 
+    protected T decodeValue(String value) {
+      return settings.getJson().fromJson(type, value);
+    }
+
     /**
      * Tries to decode the value from a {@link String} by parsing and decoding as Json.
      * @throws IllegalArgumentException if decoding failed, or decoded type is not the same.
      */
     public T decode(String value) throws IllegalArgumentException {
-      return (T)switch (defaultValue) {
-        case null -> value.equals("null");
-        // Nothing to decode
-        case String _ -> value;
-        // Handle boolean manually for more matching cases
-        case Boolean _ -> {
-          if (Strings.isTrue(value)) yield true;
-          else if (Strings.isFalse(value)) yield false;
-          else throw new IllegalArgumentException("invalid boolean value");
-        }
-        default -> {
-          try {
-            T decoded = settings.getJson().fromJson(type, value);
-            if (decoded == null)
-              throw new IllegalArgumentException("decoded value cannot be null");
-            if (decoded.getClass() != type)
-              throw new IllegalArgumentException("decoded type must be a " + type.getName());
-            yield decoded;
-          } catch (SerializationException e) {
-            throw new IllegalArgumentException(e);
-          }
-        }
-      };
+      // Fast path
+      if (type == null) return (T)(Boolean)value.equals("null");
+      if (type == String.class) return (T)value;
+      if (type == Boolean.class) {
+        if (Strings.isTrue(value)) return (T)Boolean.TRUE;
+        if (Strings.isFalse(value)) return (T)Boolean.FALSE;
+        throw new IllegalArgumentException("Invalid boolean value");
+      }
+      // Slow path using json decoding
+      try {
+        T decoded = decodeValue(value);
+        if (decoded == null) throw new IllegalArgumentException("Decoded value cannot be null");
+        if (decoded.getClass() == type) return decoded;
+        throw new IllegalArgumentException("Decoded value must be a " + type.getSimpleName());
+      } catch (SerializationException e) {
+        throw new IllegalArgumentException(e);
+      }
+    }
+  }
+
+  public static class SetField<T> extends Field<ObjectSet<T>> {
+    public final Class<T> elementType;
+    protected final Prov<ObjectSet<T>> defaultMaker;
+
+    public SetField(String key, String desc, Class<T> elementType, Prov<ObjectSet<T>> def) {
+      this(key, desc, elementType, def, null, true);
+    }
+    public SetField(String key, String desc, Class<T> elementType, Prov<ObjectSet<T>> def, Cons<ObjectSet<T>> changed) {
+      this(key, desc, elementType, def, changed, true);
+    }
+    public SetField(String key, String desc, Class<T> elementType, Prov<ObjectSet<T>> def, boolean register) {
+      this(key, desc, elementType, def, null, register);
+    }
+    public SetField(String key, String desc, Class<T> elementType, Prov<ObjectSet<T>> def, Cons<ObjectSet<T>> changed,
+                    boolean register) {
+      super(key, desc, new ObjectSet<>(0), changed, register);
+      this.elementType = elementType;
+      defaultMaker = def;
+    }
+    protected ObjectSet<T> loadValue() { return settings.getOrPut(key, type, elementType, defaultMaker); }
+    protected void saveValue() { settings.put(key, elementType, value.toSeq()); }
+    public ObjectSet<T> getDefault() { return defaultMaker.get(); }
+    protected ObjectSet<T> decodeValue(String value) { return settings.getJson().fromJson(type, elementType, value); }
+
+    public boolean add(T value) {
+      boolean added = get().add(value);
+      notifyChange();
+      return added;
+    }
+    public boolean remove(T value) {
+      boolean removed = get().remove(value);
+      notifyChange();
+      return removed;
+    }
+    public boolean contains(T value) { return get().contains(value); }
+    public void clear() {
+      get().clear();
+      notifyChange();
     }
   }
 
@@ -202,8 +269,9 @@ public class ClajConfig {
       Ignored for room hosts.
       """.trim(),
       """
-      Limit of room join requests per minute per ip address. The server will act as the room is not found.
-      This can prevent room searching. Set to &lb0&lw to disable.
+      Limit of room join requests per minute per ip address.
+      The server will act as the room was not found, which can prevent from room searching.
+      Set to &lb0&lw to disable.
       """.trim(),
       """
       Limit of room info requests per minute per ip address.
@@ -231,12 +299,24 @@ public class ClajConfig {
       """.trim(),
       "Warn all rooms when the server is closing.",
       "The time to wait before exiting the server when closing it. (in seconds)",
-      "The time after which a new room status will be requested, if necessary. (in ms)",
-      "The time to wait for the room's new status. (in ms)",
-      "The time after which a new status will be requested to all rooms, if necessary. (in ms)",
+      "The time after which a new room status will be requested, if necessary. (in seconds)",
+      "The time to wait for the room's new status. (in seconds)",
+      "The time after which a new status will be requested to all rooms, if necessary. (in seconds)",
       """
       Listing public rooms can be very long when requesting states,
       this defines the time before the list is send as is, even some state was not received.
+      """.trim(),
+      """
+      The time after which the IP address rater will be removed. (in seconds)
+      Because join, info, and list limitations uses IP addresses, to prevent peoples from resetting their
+      rate-limits just by reconnecting, it's necessary to clean them after a time not seen the IP address,
+      to avoid a potential OOM. Set to &lb0&lw to disable.
+      """.trim(),
+      """
+      The time after which the room will be closed for AFK. (in minutes)
+      Here, AFK means that no CLaJ clients has joined the room for a long time.
+      Even if, in reality, there are connected clients, but with another way than CLaJ.
+      Set to &lb0&lw to disable.
       """.trim()
   ).reverse();
 
@@ -255,14 +335,16 @@ public class ClajConfig {
   public static Field<Boolean> warnDeprecated = new Field<>("warn-deprecated", fieldDescs.pop(), true);
   public static Field<Boolean> warnClosing = new Field<>("warn-closing", fieldDescs.pop(), true);
   public static Field<Float> closeWait = new Field<>("close-wait", fieldDescs.pop(), 10f);
-  public static Field<Integer> stateLifetime = new Field<>("state-lifetime", fieldDescs.pop(), 60 * 1000);
-  public static Field<Integer> stateTimeout = new Field<>("state-timeout", fieldDescs.pop(), 20 * 1000);
-  public static Field<Integer> listLifetime = new Field<>("list-lifetime", fieldDescs.pop(), 60 * 1000);
-  public static Field<Integer> listTimeout = new Field<>("list-timeout", fieldDescs.pop(), 30 * 1000);
+  public static Field<Integer> stateLifetime = new Field<>("state-lifetime", fieldDescs.pop(), 60);
+  public static Field<Integer> stateTimeout = new Field<>("state-timeout", fieldDescs.pop(), 20);
+  public static Field<Integer> listLifetime = new Field<>("list-lifetime", fieldDescs.pop(), 60);
+  public static Field<Integer> listTimeout = new Field<>("list-timeout", fieldDescs.pop(), 30);
+  public static Field<Integer> raterLifetime = new Field<>("rater-tifetime", fieldDescs.pop(), 5 * 60);
+  public static Field<Integer> afkTime = new Field<>("afk-time", fieldDescs.pop(), 2 * 60);
 
   // Other fields having their own command
-  public static Field<ObjectSet<String>> blacklist = new Field<>("blacklist", "", new ObjectSet<>(8), false);
-  public static Field<ObjectSet<ClajType>> typeBlacklist = new Field<>("type-blacklist", "", new ObjectSet<>(8), false);
-  
+  public static SetField<String> blacklist = new SetField<>("blacklist", "", String.class, ObjectSet::new);
+  public static SetField<ClajType> typeBlacklist = new SetField<>("type-blacklist", "", ClajType.class, ObjectSet::new);
+
   static { fieldDescs.shrink(); } // remove cached fields desc
 }

@@ -204,7 +204,7 @@ public class Strings extends arc.util.Strings {
 
     return result;
   }
-  
+
   public static boolean isVersionAtLeast(String currentVersion, String newVersion) {
     return compareVersion(currentVersion, newVersion, 0) < 0;
   }
@@ -212,7 +212,7 @@ public class Strings extends arc.util.Strings {
   public static boolean isVersionAtLeast(String currentVersion, String newVersion, int maxDepth) {
     return compareVersion(currentVersion, newVersion, maxDepth) < 0;
   }
-  
+
   public static int compareVersion(String currentVersion, String newVersion) {
     return compareVersion(currentVersion, newVersion, 0);
   }
@@ -225,9 +225,10 @@ public class Strings extends arc.util.Strings {
    * @apiNote can handle dots and dashes in the version and makes very fast comparison. <br>
    *          Also ignores non-int parts. (e.g. {@code "v1.2-rc36"}, the {@code "rc36"} part will be ignored)
    */
+  @SuppressWarnings("null")
   public static int compareVersion(String currentVersion, String newVersion, int maxDepth) {
     if (maxDepth < 1) maxDepth = Integer.MAX_VALUE;
-    
+
     boolean currentEmpty = currentVersion == null || currentVersion.isEmpty();
     boolean newEmpty = newVersion == null || newVersion.isEmpty();
     if (currentEmpty && newEmpty) return 0;
@@ -613,7 +614,7 @@ public class Strings extends arc.util.Strings {
     return String.format((negated ? "-%.1f %s" : "%.1f %s") + unit,
                          Math.scalb((double)value, z * -10), " KMGTPE".charAt(z));
   }
-  
+
   private static final Object[][] TIME_PERIODS = {
     {"year",        "years",       "y",  1000L*60*60*24*365},
     {"month",       "months",      "mo", 1000L*60*60*24*30},
@@ -628,7 +629,7 @@ public class Strings extends arc.util.Strings {
   /**
    * Convert {@code millis} duration to localized human readable format (e.g. 123456 -> 2 minutes and 3 seconds),
    * using the logger system.
-   * 
+   *
    * @param millis milliseconds to convert to duration
    * @param narrow use short units or not. E.g. "5 months" if {@code false}, "5mo" if {@code true}
    */
@@ -638,14 +639,14 @@ public class Strings extends arc.util.Strings {
     StringBuilder builder = new StringBuilder();
     boolean space = false;
 
-    for (int i=0; i<TIME_PERIODS.length; i++) {
-      long period = (long)TIME_PERIODS[i][3];
+    for (Object[] element : TIME_PERIODS) {
+      long period = (long)element[3];
       if (millis >= period) {
         long count = millis / period;
         millis %= period;
         if (space) builder.append(' ');
         if (negative) builder.append('-');
-        builder.append(count).append(TIME_PERIODS[i][narrow ? 2 : count > 1 ? 1 : 0]);
+        builder.append(count).append(element[narrow ? 2 : count > 1 ? 1 : 0]);
         space = true;
       }
     }

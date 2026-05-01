@@ -76,15 +76,15 @@ public class ClajRoom implements NetListener {
   public Object state;
   /** State of the room as raw data. {@code null} if no state was received. */
   public ByteBuffer rawState;
-  /** Time of the last received room state. */
+  /** Time of the last received room state. (in ns). */
   public long lastReceivedState;
-  /** Time of the last requested room state. */
+  /** Time of the last requested room state. (in ns). */
   public long lastRequestedState;
   /** Whether a state has been requested to the room. */
   public boolean requestingState;
   /** Room implementation type. Can be {@code null}. */
   public final ClajType type;
-  /** 
+  /**
    * Maximum number of CLaJ client allowed in this room. <br>
    * {@code 0} means no limit and the value must not be higher that the server limit.
    */
@@ -107,11 +107,11 @@ public class ClajRoom implements NetListener {
     }
     con.room = this;
   }
-  
+
   protected void removeRoom(ClajConnection con) {
     if (con.room == this) con.room = null;
   }
-  
+
   /** Alerts the host that a new client is coming */
   @Override
   public void connected(Connection connection) {
@@ -311,10 +311,12 @@ public class ClajRoom implements NetListener {
     closed = true; // close before kicking connections, to avoid receiving events
     closedAt = Time.millis();
 
-    // Alert the close reason to the host
+    // Notify the reason to the host
     RoomClosedPacket p = new RoomClosedPacket();
     p.reason = reason;
     host.send(p);
+
+    Events.fire(new RoomClosedEvent(this));
 
     removeRoom(host);
     host.close();
@@ -323,8 +325,6 @@ public class ClajRoom implements NetListener {
       c.close();
     }
     clients.clear();
-
-    Events.fire(new RoomClosedEvent(this));
   }
 
   /** Sends a message to the host and clients. */
@@ -357,7 +357,7 @@ public class ClajRoom implements NetListener {
     host.send(p);
   }
 
-  public void setConfiguration(boolean isPublic, boolean isProtected, short password, boolean requestState, 
+  public void setConfiguration(boolean isPublic, boolean isProtected, short password, boolean requestState,
                                int maxClients) {
     if (closed) return;
 
@@ -375,16 +375,16 @@ public class ClajRoom implements NetListener {
    * @return whether the state has been requested.
    */
   public boolean requestState() {
-    return requestState(Time.millis());
+    return requestState(Time.nanos());
   }
 
   /**
    * Only requests state if not already done.
    * @return whether the state has been requested.
    */
-  public boolean requestState(long time) {
-    if (closed || !isStateRequestTimedOut(time)) return false;
-    lastRequestedState = time;
+  public boolean requestState(long timeNs) {
+    if (closed || !isStateRequestTimedOut(timeNs)) return false;
+    lastRequestedState = timeNs;
     requestingState = true;
     host.send(RoomStateRequestPacket.instance);
     return true;
@@ -395,7 +395,7 @@ public class ClajRoom implements NetListener {
     if (closed) return;
     if (rawState != null && rawState.remaining() >= RoomInfoPacket.MAX_BUFF_SIZE)
       throw new IllegalArgumentException("Buffer size must be less than " + RoomInfoPacket.MAX_BUFF_SIZE);
-    lastReceivedState = Time.millis();
+    lastReceivedState = Time.nanos();
     this.rawState = rawState;
     state = null; //TODO: add public decoder list
     requestingState = false;
@@ -403,27 +403,31 @@ public class ClajRoom implements NetListener {
   }
 
   public boolean isStateRequestTimedOut() {
-    return !requestingState || Time.timeSinceMillis(lastRequestedState) >= ClajConfig.stateTimeout.get();
+    if (!requestingState) return true;
+    int timeout = ClajConfig.stateTimeout.get() * 1_000_000_000;
+    return timeout > 0 && Time.timeSinceNanos(lastRequestedState) >= timeout;
   }
-  public boolean isStateRequestTimedOut(long time) {
-    return !requestingState || time - lastRequestedState >= ClajConfig.stateTimeout.get();
+  public boolean isStateRequestTimedOut(long timeNs) {
+    if (!requestingState) return true;
+    int timeout = ClajConfig.stateTimeout.get() * 1_000_000_000;
+    return timeout > 0 && timeNs - lastRequestedState >= timeout;
   }
 
   public boolean isStateOutdated() {
-    int lifetime = ClajConfig.stateLifetime.get();
-    return lifetime > 0 && Time.timeSinceMillis(lastReceivedState) >= lifetime;
+    int lifetime = ClajConfig.stateLifetime.get() * 1_000_000_000;
+    return lifetime > 0 && Time.timeSinceNanos(lastReceivedState) >= lifetime;
   }
-  public boolean isStateOutdated(long time) {
-    int lifetime = ClajConfig.stateLifetime.get();
-    return lifetime > 0 && time - lastReceivedState >= lifetime;
+  public boolean isStateOutdated(long timeNs) {
+    int lifetime = ClajConfig.stateLifetime.get() * 1_000_000_000;
+    return lifetime > 0 && timeNs - lastReceivedState >= lifetime;
   }
 
   public boolean shouldRequestState() {
     return !closed && isPublic && canRequestState;
   }
 
-  public boolean needStateRequest(long time) {
-    return shouldRequestState() && isStateOutdated(time) && isStateRequestTimedOut(time);
+  public boolean needStateRequest(long timeNs) {
+    return shouldRequestState() && isStateOutdated(timeNs) && isStateRequestTimedOut(timeNs);
   }
 
   /** State is only send if room {@link #isPublic}. */

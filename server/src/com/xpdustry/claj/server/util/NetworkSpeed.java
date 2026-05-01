@@ -27,6 +27,8 @@ import arc.util.Time;
 
 /** Calculate speed of an arbitrary thing, per seconds. E.g. network speed; in bytes per seconds. (thread-safe)*/
 public class NetworkSpeed {
+  private static final long nanosPerSecond = 1_000_000_000;
+
   protected final WindowedMean upload, download;
   protected volatile long lastUpload, lastDownload;
   protected final AtomicLong uploadAccum, downloadAccum, totalUpload, totalDownload;
@@ -38,21 +40,21 @@ public class NetworkSpeed {
     downloadAccum = new AtomicLong();
     totalUpload = new AtomicLong();
     totalDownload = new AtomicLong();
-    long now = Time.millis();
+    long now = Time.nanos();
     lastUpload = now;
     lastDownload = now;
   }
 
   public void downloadMark() { downloadMark(1); }
   public void downloadMark(int count) {
-    long time = Time.millis();
-    if (time - lastDownload >= 1000) {
+    long time = Time.nanos();
+    if (time - lastDownload >= nanosPerSecond) {
       synchronized (download) {
-        if (time - lastDownload >= 1000) { // Be sure
+        if (time - lastDownload >= nanosPerSecond) { // Be sure
           // Fill holes between calls
-          while (time - lastDownload >= 1000) {
+          while (time - lastDownload >= nanosPerSecond) {
             download.add(downloadAccum.getAndSet(0));
-            lastDownload += 1000;
+            lastDownload += nanosPerSecond;
           }
         }
       }
@@ -63,14 +65,14 @@ public class NetworkSpeed {
 
   public void uploadMark() { uploadMark(1); }
   public void uploadMark(int count) {
-    long time = Time.millis();
-    if (time - lastUpload >= 1000) {
+    long time = Time.nanos();
+    if (time - lastUpload >= nanosPerSecond) {
       synchronized (upload) {
-        if (time - lastUpload >= 1000) { // Be sure
+        if (time - lastUpload >= nanosPerSecond) { // Be sure
           // Fill holes between calls
-          while (time - lastUpload >= 1000) {
+          while (time - lastUpload >= nanosPerSecond) {
             upload.add(uploadAccum.getAndSet(0));
-            lastUpload += 1000;
+            lastUpload += nanosPerSecond;
           }
         }
       }

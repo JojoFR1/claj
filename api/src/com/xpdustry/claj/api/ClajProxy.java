@@ -41,6 +41,8 @@ public class ClajProxy extends ProxyClient {
   public final ClajProvider provider;
   public boolean isPublic, isProtected, allowStateRequests;
   public short roomPassword;
+  /** Can be used to not call {@link #roomClosed} callback, if the error is already handled. */
+  public boolean quietErrors;
 
   protected Cons<ClajLink> roomCreated;
   protected Cons<CloseReason> roomClosed;
@@ -50,10 +52,11 @@ public class ClajProxy extends ProxyClient {
   public ClajProxy(ClajProvider provider) {
     super(32768, 16384, new ClajClientSerializer(), provider::postTask);
     this.provider = provider;
-    this.conListener = provider.getConnectionListener(this);
+    conListener = provider.getConnectionListener(this);
+    errorHandler = e -> provider.handleProxyError(this, e);
 
     receiver.handle(Connect.class, this::requestRoomId);
-    receiver.handle(Disconnect.class, () -> runRoomClose(CloseReason.error));
+    receiver.handle(Disconnect.class, _ -> runRoomClose(CloseReason.error));
 
     receiver.handle(ConnectionJoinPacket.class, p -> conConnected(p.conID, p.addressHash));
     receiver.handle(ConnectionClosedPacket.class, p -> conDisconnected(p.conID, p.reason));
@@ -75,10 +78,11 @@ public class ClajProxy extends ProxyClient {
       connect(host, port);
       roomCreated = created;
       roomClosed = closed;
-      ignoreExceptions = false;
     } catch (Exception e) {
       runRoomClose(CloseReason.error);
       failed.get(e);
+    } finally {
+      quietErrors = false;
     }
   }
 
@@ -88,7 +92,6 @@ public class ClajProxy extends ProxyClient {
 
   protected void runRoomCreated(long roomId) {
     if (roomCreated()) return;
-    ignoreExceptions = true;
     this.roomId = roomId;
     link = new ClajLink(connectHost.getHostName(), connectTcpPort, roomId);
     // 0 is not allowed since it's used to specify an uncreated room
@@ -100,13 +103,14 @@ public class ClajProxy extends ProxyClient {
 
   /** This also resets room id and removes callbacks. */
   protected void runRoomClose(CloseReason reason) {
-    ignoreExceptions = false;
     roomId = UNCREATED_ROOM;
     link = null;
-    if (roomClosed != null) postTask(roomClosed, reason);
+    if (!(quietErrors && reason == CloseReason.error) && roomClosed != null)
+      postTask(roomClosed, reason);
     roomCreated = null;
     roomClosed = null;
     close();
+    quietErrors = false;
   }
 
   /** {@code 0} means no room created. */
@@ -131,7 +135,7 @@ public class ClajProxy extends ProxyClient {
   public void closeRoom() {
     closeRoom(null);
   }
-  
+
   /** {@code null} reason means closed by user. */
   public void closeRoom(CloseReason reason) {
     if (!roomCreated()) return;

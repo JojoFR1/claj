@@ -97,6 +97,14 @@ public class ServerReceiver implements NetListener {
   }
 
   public <T extends Packet> void handle(Class<T> type, Cons2<Connection, T> listener) {
+    Cons2<Connection, T> old = getListener(type);
+    if (old != null) {
+      Cons2<Connection, T> current = listener;
+      listener = (c, p) -> {
+        old.get(c, p);
+        current.get(c, p);
+      };
+    }
     listeners.put(type, listener);
   }
 

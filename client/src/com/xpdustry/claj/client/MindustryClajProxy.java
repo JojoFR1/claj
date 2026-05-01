@@ -20,7 +20,6 @@
 package com.xpdustry.claj.client;
 
 import arc.Core;
-import arc.func.Cons;
 import arc.net.Connection;
 import arc.util.Ratekeeper;
 
@@ -48,9 +47,7 @@ public class MindustryClajProxy extends ClajProxy {
     super(provider);
 
     // Modify listener to set the noop rate
-    Cons<ConnectionJoinPacket> oldConJoin = receiver.getListener(ConnectionJoinPacket.class);
     receiver.handle(ConnectionJoinPacket.class, p -> {
-      oldConJoin.get(p);
       NetConnection net = toMindustryConnection(getConnection(p.conID));
       if (net == null) return;
       // Change the packet rate and chat rate to a no-op version to avoid a potential life blacklisting

@@ -42,6 +42,13 @@ public interface ClajProvider {
   /** Used to create new pinger clients. Cannot be {@code null}. */
   default ClajPinger newPinger() { return new ClajPinger(this); }
 
+  default void handleProxyError(ClajProxy proxy, Throwable error) {
+    throw new RuntimeException("Unexpected error in proxy", error);
+  }
+  default void handlePingerError(ClajPinger pinger, Throwable error) {
+    throw new RuntimeException("Unexpected error in pinger", error);
+  }
+
   /**
    * The implementation type, used to validate compatibility between room host and clients. <br>
    * Can be {@code null} to not make any validation (not recommended). <br>

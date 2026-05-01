@@ -20,8 +20,10 @@
 package com.xpdustry.claj.server;
 
 import arc.ApplicationListener;
+import arc.Core;
 import arc.Events;
 import arc.backend.headless.HeadlessApplication;
+import arc.mock.MockSettings;
 import arc.util.Log;
 
 import com.xpdustry.claj.common.ClajPackets;
@@ -48,7 +50,7 @@ public class Main implements ApplicationListener {
       // Try to dispose properly
       try { app.dispose(); }
       catch (Exception e) { disposeError = e; }
-      try { ClajConfig.save(); } 
+      try { ClajConfig.save(); }
       catch (Exception e) { saveError = e; }
       Autosaver.forceSave();
       if (isLoading) Log.err("Failed to load server", t);
@@ -76,11 +78,14 @@ public class Main implements ApplicationListener {
 
   @Override
   public void init() {
+    // We do not uses default settings system
+    Core.settings = new MockSettings();
+
     ClajConfig.load();
     Log.level = ClajConfig.debug.get() ? Log.LogLevel.debug : Log.LogLevel.info; // set log level
     ClajPackets.init();
     Autosaver.init(app);
-    
+
     app.addListener(ClajVars.control = new ClajControl());
     app.addListener(ClajVars.plugins = new Plugins(ClajVars.pluginsDirectory, ClajVars.control));
     app.addListener(ClajVars.relay = new ClajRelay(ClajVars.networkSpeed));

@@ -38,7 +38,7 @@ public class ClajStateSummary {
   public final String javaVersion;
   public final long uptime;
   public final int tps;
-  public final long usedHeap, availableHeap;
+  public final long usedHeap, allocatedHeap;
   /** in %. {@code -1} if unknown. */
   public final float javaCpuLoad, systemCpuLoad;
   public final int rooms, clients, connections;
@@ -52,7 +52,7 @@ public class ClajStateSummary {
     uptime = Time.timeSinceMillis(ClajVars.startedAt);
     tps = Core.graphics.getFramesPerSecond();
     usedHeap = Core.app.getJavaHeap();
-    availableHeap = Runtime.getRuntime().totalMemory();
+    allocatedHeap = Runtime.getRuntime().totalMemory();
     javaCpuLoad = CpuUsageGetter.processCpuLoad();
     systemCpuLoad = CpuUsageGetter.cpuLoad();
     rooms = ClajVars.relay.rooms.size;

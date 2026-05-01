@@ -25,9 +25,7 @@ import java.util.concurrent.ExecutorService;
 import arc.Core;
 import arc.net.NetListener;
 import arc.net.Server;
-import arc.util.Reflect;
-import arc.util.Strings;
-import arc.util.Timer;
+import arc.util.*;
 import arc.util.io.ByteBufferInput;
 import arc.util.io.ByteBufferOutput;
 
@@ -37,8 +35,7 @@ import mindustry.net.ArcNetProvider.PacketSerializer;
 import mindustry.net.Net.NetProvider;
 import mindustry.net.NetworkIO;
 
-import com.xpdustry.claj.api.ClajProvider;
-import com.xpdustry.claj.api.ClajProxy;
+import com.xpdustry.claj.api.*;
 import com.xpdustry.claj.common.packets.ConnectionPacketWrapPacket;
 import com.xpdustry.claj.common.status.*;
 
@@ -77,6 +74,20 @@ public class MindustryClajProvider implements ClajProvider {
   @Override
   public ClajProxy newProxy() {
     return new MindustryClajProxy(this);
+  }
+
+  @Override
+  public void handleProxyError(ClajProxy proxy, Throwable error) {
+    if (proxy.roomCreated()) {
+      Vars.ui.showException("@claj.room.error", error);
+      proxy.quietErrors = true;
+    }
+    Log.err("Error while hosting the room", error);
+  }
+
+  @Override
+  public void handlePingerError(ClajPinger pinger, Throwable error) {
+    Log.err("Error while running a pinger", error);
   }
 
   @Override
@@ -145,7 +156,7 @@ public class MindustryClajProvider implements ClajProvider {
 
     Timer.schedule(() -> {
       if (!proxy.roomCreated()) return;
-      proxy.clearRoomCache(CloseReason.serverClosed);
+      proxy.closeRoom(CloseReason.serverClosed);
     }, 5);
   }
 

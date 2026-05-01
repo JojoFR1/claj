@@ -25,18 +25,18 @@ import java.nio.channels.ClosedSelectorException;
 import java.nio.channels.Selector;
 
 import arc.func.Cons;
-import arc.net.ArcNet;
+import arc.net.ArcNetException;
 import arc.net.Client;
 import arc.net.DcReason;
 import arc.net.FrameworkMessage;
 import arc.struct.LongMap;
 import arc.struct.ObjectSet;
 import arc.struct.Seq;
-import arc.util.Log;
 import arc.util.Reflect;
 import arc.util.io.ByteBufferInput;
 
 import com.xpdustry.claj.common.ClajNet;
+import com.xpdustry.claj.common.ClajPackets.Disconnect;
 import com.xpdustry.claj.common.net.ClientReceiver;
 import com.xpdustry.claj.common.packets.*;
 import com.xpdustry.claj.common.status.*;
@@ -91,6 +91,12 @@ public class ClajPinger extends Client {
     this.provider = provider;
     this.receiver = new ClientReceiver(this, null); // no need to delegate to the main thread
 
+    receiver.handle(Disconnect.class, _ -> {
+      Throwable error = getLastProtocolError();
+      if (error != null) provider.handlePingerError(this, error);
+      failed(error);
+    });
+
     receiver.handle(RoomJoinAcceptedPacket.class, p -> {
       if (p.roomId != ClajProxy.UNCREATED_ROOM && p.roomId == requestedRoom)
         runJoinSuccess();
@@ -111,15 +117,10 @@ public class ClajPinger extends Client {
   }
 
   @Override
-  public void update(int t) {
-    try {
-      super.update(canceling ? 0 : t);
-      if (isRequestTimedOut()) timeout();
-      if (canceling) close();
-    } catch (Exception e) {
-      close();
-      ArcNet.handleError(e);
-    }
+  public void update(int t) throws IOException {
+    super.update(canceling ? 0 : t);
+    if (isRequestTimedOut()) timeout();
+    if (canceling) close();
   }
 
   @Override
@@ -127,6 +128,12 @@ public class ClajPinger extends Client {
     shutdown = starting = false;
     try { super.run(); }
     catch (ClosedSelectorException _) {}
+    catch (ArcNetException _) {} // Already handled by disconnect event
+    catch (Exception e) {
+      provider.handlePingerError(this, e);
+      failed(e);
+      close();
+    }
     finally { shutdown = true; }
   }
 
@@ -164,21 +171,26 @@ public class ClajPinger extends Client {
   }
 
   protected void timeout() {
-    stopTask("timed out");
+    stopTask("timed out", null);
     if (connecting) super.close(DcReason.timeout);
   }
 
   /** Cancel running operation. */
   public void cancel() {
-    stopTask("canceled");
+    stopTask("canceled", null);
     if (connecting) super.close(DcReason.closed);
   }
 
-  public synchronized void stopTask(String reason) {
-    if (pinging) runPingFailed(new RuntimeException("Ping " + reason));
-    if (listing) runListFailed(new RuntimeException("Room listing " + reason));
-    if (joining) runJoinFailed(new RuntimeException("Room join " + reason));
-    if (infoing) runInfoFailed(new RuntimeException("Room info " + reason));
+  public void failed(Throwable error) {
+    stopTask("failed", error);
+    if (connecting) super.close(DcReason.closed);
+  }
+
+  public synchronized void stopTask(String reason, Throwable error) {
+    if (pinging) runPingFailed(new RuntimeException("Ping " + reason, error));
+    if (listing) runListFailed(new RuntimeException("Room listing " + reason, error));
+    if (joining) runJoinFailed(new RuntimeException("Room join " + reason, error));
+    if (infoing) runInfoFailed(new RuntimeException("Room info " + reason, error));
   }
 
   public boolean isRunning() {
@@ -215,14 +227,17 @@ public class ClajPinger extends Client {
     timeout = time + out;
     setTimeout(out);
   }
-  
+
   protected <T> ClajRoom<T> makeRoom(long roomId, boolean isProtected, ClajType type, int clients, int maxClients,
                                      ByteBuffer state) {
     T decodedState = null;
     ClajLink link = new ClajLink(connectHost, connectPort, roomId);
     if (state != null && state.hasRemaining()) {
       try { decodedState = provider.readRoomState(roomId, type, state); }
-      catch (Exception e) { Log.err("Failed to decode state of room " + link.encodedRoomId, e); }
+      catch (Exception e) {
+        Exception error = new RuntimeException("Failed to decode state of room " + link.encodedRoomId, e);
+        provider.handlePingerError(this, error);
+      }
     }
     return new ClajRoom<>(roomId, true, isProtected, decodedState, link, type, clients, maxClients);
   }
@@ -317,9 +332,9 @@ public class ClajPinger extends Client {
     infoing = false;
   }
 
-  protected void runInfoSuccess(long roomId, boolean isProtected, ClajType type, int clients, int maxClients, 
+  protected void runInfoSuccess(long roomId, boolean isProtected, ClajType type, int clients, int maxClients,
                                 ByteBuffer state) {
-    if (infoSuccess != null) 
+    if (infoSuccess != null)
       postTask(infoSuccess, makeRoom(roomId, isProtected, type, clients, maxClients, state));
     resetInfoState(null, null, null);
     close();
